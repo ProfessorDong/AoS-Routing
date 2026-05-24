@@ -12,6 +12,10 @@ fig_aos_pareto.pdf
 fig_lyapunov.pdf
 fig_aos_algorithm.pdf
 
+# Working / status docs (local only)
+CLAUDE.md
+PROJECT_STATUS.md
+
 # LaTeX build artifacts
 *.aux
 *.bbl
