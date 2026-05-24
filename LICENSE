@@ -23,11 +23,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ----
 
-The IEEE conference LaTeX template files `IEEEtran.cls` and
-`IEEEtran.bst` are distributed under the LaTeX Project Public License
-(LPPL); they are included unmodified from the official IEEE conference
-template. See https://www.latex-project.org/lppl/ for the LPPL terms.
-
 The Starlink TLE snapshot in `sim/data/starlink.tle` is public orbital
 data redistributed from the CelesTrak GP catalog (https://celestrak.org/)
 and the U.S. Space-Track service.

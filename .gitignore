@@ -1,3 +1,17 @@
+# Paper manuscript (kept local only; not uploaded to this repo)
+main.tex
+main.pdf
+references.bib
+IEEEtran.cls
+IEEEtran.bst
+IEEEabrv.bib
+fig_aos_topology.pdf
+fig_aos_goodput.pdf
+fig_aos_mean.pdf
+fig_aos_pareto.pdf
+fig_lyapunov.pdf
+fig_aos_algorithm.pdf
+
 # LaTeX build artifacts
 *.aux
 *.bbl
