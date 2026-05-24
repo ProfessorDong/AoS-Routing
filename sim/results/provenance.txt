@@ -1,0 +1,1 @@
+Real Starlink Phase-1 snapshot, 1306 satellites (inclination 52.5-53.5 deg, altitude 530-570 km), reference epoch 2026-day144.03274.

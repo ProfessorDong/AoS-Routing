@@ -1,0 +1,47 @@
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+*.toc
+*.lof
+*.lot
+*.nav
+*.snm
+*.vrb
+texput.log
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+.pytest_cache/
+.coverage
+.venv/
+venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Sanity / scratch run outputs (regeneratable; kept out of repo)
+sim/results_sanity/
+sim/results_sanity2/
+sim/results_sanity3/
+sim/results_lyap_scratch/
+
+# Large or local-only artifacts
+*.pkl
+*.h5
