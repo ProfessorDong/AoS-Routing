@@ -3,14 +3,19 @@
 **Age-of-Secret routing for hybrid quantum-classical tactical
 non-terrestrial networks.**
 
-Code and data accompanying:
+Code and reproducibility artifacts accompanying:
 
 > Liang Dong, *"Age-of-Secret Routing for Hybrid Quantum-Classical
 > Tactical Non-Terrestrial Networks,"* MILCOM 2026 (under review).
+>
+> *A companion journal paper extending this work is in preparation;
+> its code will be added to a separate subdirectory of this repository
+> when ready.*
 
-This repository reproduces every reported number, table, and figure
-in the paper from the simulator and the real Starlink Phase-1 TLE
-snapshot included under `sim/data/`.
+This repository contains the simulator, the real Starlink Phase-1 TLE
+snapshot, and the per-run logs that reproduce every reported number,
+table, and figure in the conference paper.  The paper PDF itself is
+not hosted here.
 
 ## Highlights
 
@@ -35,32 +40,35 @@ snapshot included under `sim/data/`.
 
 ```
 .
-├── main.tex / main.pdf       MILCOM 2026 manuscript
-├── references.bib            BibTeX database
-├── fig_aos_*.pdf             figures copied from sim/figs for the paper build
-├── fig_lyapunov.pdf
-├── IEEEtran.cls / .bst       IEEE conference LaTeX style (LPPL)
-└── sim/
-    ├── data/starlink.tle     real Starlink TLE snapshot (May 2026)
+├── README.md
+├── LICENSE
+├── .gitignore
+└── sim/                                    MILCOM 2026 conference code
+    ├── data/starlink.tle                   real Starlink TLE snapshot (May 2026)
     ├── src/
-    │   ├── constellation.py  real-TLE loader, SGP4 visibility,
-    │   │                     QKD rate (Liao 2017 calibrated),
-    │   │                     ISCCP cloud-attenuation model
-    │   ├── aos_network.py    discrete-event NTN simulator,
-    │   │                     six schedulers (AoS-BP, AoS-BP-Ideal,
-    │   │                     and four baselines)
-    │   └── make_figures.py   generates fig_*.pdf from sim/results/
-    ├── results/              per-run CSVs + master.csv (sweep output)
-    ├── results_lyap/         extended 3600-cycle run for Fig. 5
-    └── figs/                 vector PDF + raster PNG figures
+    │   ├── constellation.py                real-TLE loader, SGP4 visibility,
+    │   │                                   QKD rate (Liao 2017 calibrated),
+    │   │                                   ISCCP cloud-attenuation model
+    │   ├── aos_network.py                  discrete-event NTN simulator,
+    │   │                                   six schedulers (AoS-BP, AoS-BP-Ideal,
+    │   │                                   and four baselines)
+    │   └── make_figures.py                 generates figures from sim/results/
+    ├── results/                            per-run CSVs + master.csv (sweep output)
+    ├── results_lyap/                       extended 3600-cycle run for the
+    │                                       Lyapunov verification figure
+    └── figs/                               vector PDF + raster PNG figures
 ```
 
-## Reproducing the paper
+The future journal-paper code will live in a sibling top-level
+directory (e.g., `journal/`) to keep its dependencies and results
+separate from the conference-paper artifacts above.
 
-Tested on Ubuntu 24.04 with Python 3.12 and TeX Live 2023.
+## Reproducing the experiments
+
+Tested on Ubuntu 24.04 with Python 3.12.
 
 ```bash
-# 1. Install Python deps
+# 1. Install Python dependencies
 pip install numpy scipy pandas matplotlib skyfield sgp4
 
 # 2. Run the full simulator sweep (5 seeds × 5 scenarios × 6 schedulers)
@@ -73,22 +81,18 @@ python3 aos_network.py --horizon 600 \
                 traffic_surge coalition_partition \
     --out results
 
-# 3. Extended run for the Lyapunov figure
+# 3. Extended run for the Lyapunov verification figure
 python3 aos_network.py --horizon 3600 --seeds 0 \
     --schedulers shortest_path aos_ideal aos_backpressure \
     --scenarios nominal --out results_lyap
 
 # 4. Regenerate figures and headline table
 python3 make_figures.py
-
-# 5. Build the PDF
-cd ../..
-pdflatex main && bibtex main && pdflatex main && pdflatex main
 ```
 
 Total reproduction wall time on a single CPU is under 10 min (≈ 3 min
-of SGP4 schedule build + ≈ 4 min of simulator sweep + the LaTeX
-build). No GPU required.
+of SGP4 schedule build + ≈ 4 min of simulator sweep). No GPU
+required.
 
 ## Real-data anchors
 
@@ -102,15 +106,13 @@ build). No GPU required.
 
 ## License
 
-* Source code (`sim/src/*.py`), data (`sim/data/starlink.tle`),
-  configuration, figures, and the manuscript LaTeX/BibTeX sources:
-  MIT License — see [`LICENSE`](LICENSE).
-* `IEEEtran.cls` and `IEEEtran.bst` are distributed under the LaTeX
-  Project Public License (LPPL); they are included unmodified from
-  the official IEEE conference template.
-* The Starlink TLE snapshot in `sim/data/starlink.tle` is public
-  data redistributed from the CelesTrak GP catalog
-  (https://celestrak.org/) and the U.S. Space-Track service.
+Source code (`sim/src/*.py`), data (`sim/data/starlink.tle`),
+configuration, and figures are released under the MIT License — see
+[`LICENSE`](LICENSE).
+
+The Starlink TLE snapshot in `sim/data/starlink.tle` is public orbital
+data redistributed from the CelesTrak GP catalog
+(https://celestrak.org/) and the U.S. Space-Track service.
 
 ## Citing
 
@@ -131,4 +133,4 @@ If you use this code or data, please cite:
 
 Liang Dong, Department of Electrical and Computer Engineering,
 Baylor University, Waco, TX 76798, USA.
-Email: `Liang_Dong@baylor.edu`.
+Email: `liangdng@gmail.com`.
