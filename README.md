@@ -5,36 +5,52 @@ non-terrestrial networks.**
 
 Code and reproducibility artifacts accompanying:
 
-> Liang Dong, *"Age-of-Secret Routing for Hybrid Quantum-Classical
-> Tactical Non-Terrestrial Networks,"* MILCOM 2026 (under review).
+> Liang Dong, *"Age of Secret: Throughput-Optimal Routing under
+> Stochastic Key Supply in Hybrid Quantum-Classical Networks."*
+> Journal manuscript in preparation.
 >
-> *A companion journal paper extending this work is in preparation;
-> its code will be added to a separate subdirectory of this repository
-> when ready.*
+> *Supersedes the MILCOM 2026 conference submission of the same
+> project.*
 
 This repository contains the simulator, the real Starlink Phase-1 TLE
 snapshot, and the per-run logs that reproduce every reported number,
-table, and figure in the conference paper.  The paper PDF itself is
-not hosted here.
+table, and figure.  The manuscript itself is not hosted here.
 
 ## Highlights
 
 * **Age of Secret (AoS)** — a routing-layer metric for cryptographic
   freshness and key-pool depletion risk in tactical NTNs.
-* **Throughput-optimality theorem** — AoS-aware backpressure
-  mean-rate-stabilizes the joint queue-and-key-deficit process for
-  every arrival rate strictly inside a secure capacity region
-  $\Lambda_S$ characterized in the paper.
+* **Secure capacity region** — a converse showing no policy is rate
+  stable outside $\Lambda_S$ for any key-buffer size, and a matching
+  achievability result inside it.
+* **Exact per-slot scheduling** — the per-slot max-weight problem over
+  path actions is a linear program, solved exactly by column
+  generation whose pricing subproblem is one Dijkstra run per flow on
+  the drift-derived edge cost plus the master's dual price.  The
+  per-flow greedy that omits the dual price forgoes an unbounded
+  fraction of the objective; `test_cg.py` exhibits the counterexample
+  and checks the solver against full path enumeration.
 * **Real-data simulator** — driven by a real Starlink Phase-1 TLE
   snapshot (1306 LEO satellites, May 2026 CelesTrak/Space-Track),
   SGP4 pass-window propagation, a Beer–Lambert cloud-attenuation
   model parametrized by ISCCP mid-latitude climatology, and the
   liboqs ML-KEM-768 throughput point for the PQC refresh rate.
-* **Empirical winner on Age of Secret** — across 5 seeds × 5
-  tactical scenarios, AoS-aware backpressure attains the lowest mean
-  AoS in every scenario (2.5–29 s) while matching the secure
-  goodput of the best unprincipled baseline; the closest competitor
-  is 1.8–11.6× worse on AoS.
+* **Empirical results** — across 20 seeds × 5 tactical scenarios,
+  AoS-BP attains 2.2–40.2 s mean Age of Secret while matching the
+  secure goodput of the best baseline to within 0.01 %. The strongest
+  unprincipled competitor (key-rate-aware) sits at 21–42 s, and
+  PQC-only at 61–94 s. QKD-only reaches competitive freshness only
+  by delivering a fifth of the offered load.
+
+**Scheduler naming.**
+
+| key | paper name | status |
+|---|---|---|
+| `aos_cg` | **AoS-BP** | main algorithm; solves the per-slot max-weight LP exactly by column generation |
+| `aos_greedy` | AoS-BP-G | ablation; per-flow greedy, unbounded loss (Proposition 1) |
+| `aos_backpressure` | AoS-BP-H | ablation; cost-minimising heuristic from the MILCOM version |
+| `aos_ideal` | AoS-BP-Ideal | the per-edge max-weight scheduler of the achievability theorem |
+| `shortest_path`, `pqc_only`, `qkd_only`, `key_rate_aware` | baselines | Dijkstra over scheduler-specific edge weights |
 
 ## Layout
 
@@ -43,25 +59,37 @@ not hosted here.
 ├── README.md
 ├── LICENSE
 ├── .gitignore
-└── sim/                                    MILCOM 2026 conference code
+└── sim/                                    simulator, data, and logs
     ├── data/starlink.tle                   real Starlink TLE snapshot (May 2026)
     ├── src/
     │   ├── constellation.py                real-TLE loader, SGP4 visibility,
     │   │                                   QKD rate (Liao 2017 calibrated),
     │   │                                   ISCCP cloud-attenuation model
     │   ├── aos_network.py                  discrete-event NTN simulator,
-    │   │                                   six schedulers (AoS-BP, AoS-BP-Ideal,
-    │   │                                   and four baselines)
+    │   │                                   eight schedulers (AoS-BP, two
+    │   │                                   ablations, AoS-BP-Ideal, four
+    │   │                                   baselines)
+    │   ├── test_cg.py                      correctness tests for the column-
+    │   │                                   generation solver: the greedy
+    │   │                                   counterexample, exactness against
+    │   │                                   full path enumeration, feasibility
+    │   ├── param_study.py                  parameter-selection and sensitivity
+    │   │                                   study (weight form, K_max, T_a,
+    │   │                                   load sweep, penalty-backlog curve,
+    │   │                                   exact-vs-greedy gap)
+    │   ├── weight_audit.py                 decomposition of the routing weight
+    │   │                                   and the omega sweep
     │   └── make_figures.py                 generates figures from sim/results/
     ├── results/                            per-run CSVs + master.csv (sweep output)
+    ├── results_param/                      parameter-study output
     ├── results_lyap/                       extended 3600-cycle run for the
     │                                       Lyapunov verification figure
     └── figs/                               vector PDF + raster PNG figures
 ```
 
-The future journal-paper code will live in a sibling top-level
-directory (e.g., `journal/`) to keep its dependencies and results
-separate from the conference-paper artifacts above.
+`sim/` now carries the journal version of the code; the MILCOM
+scheduler is retained inside it as the `aos_backpressure` ablation
+rather than in a separate tree.
 
 ## Reproducing the experiments
 
@@ -71,28 +99,40 @@ Tested on Ubuntu 24.04 with Python 3.12.
 # 1. Install Python dependencies
 pip install numpy scipy pandas matplotlib skyfield sgp4
 
-# 2. Run the full simulator sweep (5 seeds × 5 scenarios × 6 schedulers)
+# 2. Check the scheduler solves the per-slot problem exactly
 cd sim/src
+python3 test_cg.py
+
+# 3. Run the full simulator sweep (20 seeds × 5 scenarios × 8 schedulers)
 python3 aos_network.py --horizon 600 \
-    --seeds 0 1 2 3 4 \
-    --schedulers shortest_path pqc_only qkd_only \
-                 key_rate_aware aos_backpressure aos_ideal \
+    --seeds 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 \
+    --schedulers shortest_path pqc_only qkd_only key_rate_aware \
+                 aos_backpressure aos_greedy aos_cg aos_ideal \
     --scenarios nominal weather relay_compromise \
                 traffic_surge coalition_partition \
     --out results
 
-# 3. Extended run for the Lyapunov verification figure
+# 4. Extended run for the Lyapunov verification figure
 python3 aos_network.py --horizon 3600 --seeds 0 \
     --schedulers shortest_path aos_ideal aos_backpressure \
+                 aos_greedy aos_cg \
     --scenarios nominal --out results_lyap
 
-# 4. Regenerate figures and headline table
+# 5. Parameter-selection and sensitivity study
+python3 param_study.py
+
+# 6. Routing-weight decomposition and the omega sweep
+python3 weight_audit.py
+
+# 7. Regenerate figures and headline table
 python3 make_figures.py
 ```
 
-Total reproduction wall time on a single CPU is under 10 min (≈ 3 min
-of SGP4 schedule build + ≈ 4 min of simulator sweep). No GPU
-required.
+Total reproduction wall time on a single CPU is roughly 40 min, most of
+it the SGP4 schedule build (20 seeds × 1306 satellites × 6 ground
+stations) and the parameter study. The main sweep itself is about
+6 min. No GPU required; every result is deterministic given
+`PYTHONHASHSEED=0`.
 
 ## Real-data anchors
 
@@ -119,13 +159,12 @@ data redistributed from the CelesTrak GP catalog
 If you use this code or data, please cite:
 
 ```bibtex
-@inproceedings{dong_aos_routing_2026,
-  author    = {Liang Dong},
-  title     = {{Age-of-Secret Routing for Hybrid Quantum-Classical
-               Tactical Non-Terrestrial Networks}},
-  booktitle = {Proc. IEEE Military Communications Conference (MILCOM)},
-  year      = {2026},
-  note      = {Under review}
+@unpublished{dong_aos_routing_2026,
+  author = {Liang Dong},
+  title  = {{Age of Secret: Throughput-Optimal Routing under Stochastic
+            Key Supply in Hybrid Quantum-Classical Networks}},
+  year   = {2026},
+  note   = {Manuscript in preparation}
 }
 ```
 

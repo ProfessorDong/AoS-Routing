@@ -12,6 +12,17 @@ fig_aos_pareto.pdf
 fig_lyapunov.pdf
 fig_aos_algorithm.pdf
 
+# Journal (IEEE/ACM ToN) manuscript -- local only, same rule as the
+# conference manuscript above.  Only code and data go to the repo.
+journal/ton.tex
+journal/ton.pdf
+journal/IEEEtran.cls
+journal/IEEEtran.bst
+journal/references.bib
+journal/IEEEabrv.bib
+journal/data/
+journal/*.pdf
+
 # Working / status docs (local only)
 CLAUDE.md
 PROJECT_STATUS.md

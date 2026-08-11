@@ -152,7 +152,8 @@ DEFAULT_SHELL = {
     "n_planes":      22,
     "sats_per_plane":22,
     "phase_offset":  1,            # F parameter in Walker (N, P, F)
-    "epoch_jd":      2461000.5,    # 2025-12-29 UT - fixed reproducible epoch
+    "epoch_jd":      2461038.5,    # 2025-12-29 UT, matching the synthetic
+                                   # TLE epoch stamped in make_walker_tles()
 }
 
 
@@ -256,6 +257,25 @@ def build_satellites(tles: list[tuple[str, str, str]]) -> list[EarthSatellite]:
         except Exception:
             continue
     return sats
+
+
+def constellation_epoch_tt_jd(sats: list[EarthSatellite]) -> float:
+    """Median TLE epoch of `sats`, as a TT Julian date.
+
+    SGP4 is an epoch-anchored analytic propagator: its error grows rapidly
+    with time from the TLE epoch (kilometres within days, and for LEO the
+    along-track and RAAN errors become order-of-orbit after weeks).  Any
+    simulation that claims to use the *actual* orbital state of a snapshot
+    must therefore be anchored at that snapshot's epoch rather than at an
+    unrelated fixed date.
+
+    The Phase-1 filtered set is drawn from a single catalog download and
+    spans well under one day, so the median epoch is within roughly half a
+    day of every satellite in the set.
+    """
+    if not sats:
+        raise ValueError("cannot derive an epoch from an empty constellation")
+    return float(np.median([s.epoch.tt for s in sats]))
 
 
 def passes(sat: EarthSatellite, gs: GroundStation, t_start, t_end,
