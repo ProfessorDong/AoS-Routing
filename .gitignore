@@ -74,3 +74,8 @@ sim/results_lyap_scratch/
 # Large or local-only artifacts
 *.pkl
 *.h5
+
+# Raw ERA5 netCDF (7.6 MB of Copernicus data).  Not redistributed here:
+# `sim/src/fetch_era5.py` regenerates it from the Climate Data Store, and
+# the derived per-hour transmittance series IS committed.
+sim/data/era5/

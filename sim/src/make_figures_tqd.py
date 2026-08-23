@@ -1,0 +1,122 @@
+"""Export the hybrid-supply results as pgfplots tables.
+
+The manuscript draws its figures natively in pgfplots so that figure
+text is typeset by LaTeX in the document font.  This writes the plain
+tables those figures read.  Nothing is smoothed or fitted; where a
+theoretical curve is plotted alongside a measurement, the curve comes
+from the linear program of `aos_tqd.region_boundary` and not from the
+data.
+
+Run after aos_tqd.py and tqd_studies.py:  python3 make_figures_tqd.py
+"""
+from __future__ import annotations
+
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+HERE = Path(__file__).resolve().parent
+SIM = HERE.parent
+PAPER = SIM.parent
+OUT = PAPER / "journal" / "data"
+
+
+def _w(name: str, header: str, rows) -> None:
+    OUT.mkdir(parents=True, exist_ok=True)
+    with open(OUT / name, "w") as fh:
+        fh.write(header + "\n")
+        for r in rows:
+            fh.write(" ".join(f"{v:.6g}" if isinstance(v, float) else str(v)
+                              for v in r) + "\n")
+    print(f"  wrote {name} ({len(rows)} rows)")
+
+
+def main() -> None:
+    st = pd.read_csv(SIM / "results_tqd" / "studies.csv")
+    extra = SIM / "results_tqd" / "extra_loads.csv"
+    if extra.exists():          # load points past this paper's boundary
+        st = pd.concat([st, pd.read_csv(extra)], ignore_index=True)
+
+    # (1) grade-capacity tradeoff: the reciprocal of Theorem 3, measured
+    c = st[st.study == "C"].sort_values("theta")
+    tqd_boundary = float(st[(st.study == "A") & (st.policy == "tqd")]
+                         .lp_boundary_mbps.iloc[0])
+    _w("gradecap.dat", "theta bound_ours bound_prior goodput aos",
+       [(float(r.theta), float(r.lp_boundary_mbps), tqd_boundary,
+         float(r.goodput_mbps), float(r.mean_aos)) for _, r in c.iterrows()])
+
+    # (2) load sweep: where each policy's backlog lifts off the axis,
+    #     against the boundary the linear program predicts
+    a = st[st.study == "A"]
+    ours = a[a.policy == "aos_tqd"].sort_values("offered_mbps")
+    prior = a[a.policy == "tqd"].sort_values("offered_mbps")
+    _w("loadsweep2.dat",
+       "offered slope_ours slope_prior gp_ours gp_prior",
+       [(float(o.offered_mbps), max(0.0, float(o.phys_slope)),
+         max(0.0, float(p.phys_slope)), float(o.goodput_mbps),
+         float(p.goodput_mbps))
+        for (_, o), (_, p) in zip(ours.iterrows(), prior.iterrows())])
+    print(f"    boundaries: ours {ours.lp_boundary_mbps.iloc[0]:.2f}, "
+          f"prior {tqd_boundary:.2f} Mbps")
+
+    # (3) budget sweep
+    b = st[st.study == "B"].sort_values("budget_scale")
+    _w("budget.dat", "scale bound goodput its",
+       [(float(r.budget_scale), float(r.lp_boundary_mbps),
+         float(r.goodput_mbps), float(r.its_fraction))
+        for _, r in b.iterrows()])
+
+    # (4) demand gating, derived: manufacturing falls away as its price
+    #     rises, long before goodput does
+    e = st[st.study == "E"].sort_values("V_nu")
+    _w("gating.dat", "vnu manufactured goodput its",
+       [(max(float(r.V_nu), 0.1), float(r.manufacture_utilisation),
+         float(r.goodput_mbps), float(r.its_fraction))
+        for _, r in e.iterrows()])
+
+    # (5) freshness weight selection
+    d = st[st.study == "D"].sort_values("V_chi")
+    _w("vchi.dat", "vchi aos goodput slope its",
+       [(max(float(r.V_chi), 0.01), float(r.mean_aos),
+         float(r.goodput_mbps), max(0.0, float(r.phys_slope)),
+         float(r.its_fraction)) for _, r in d.iterrows()])
+
+    # (6) what pooling the two species costs, against load
+    mp = SIM / "results_tqd" / "mislabel.csv"
+    if mp.exists():
+        m = pd.read_csv(mp)
+        f = m[m.policy == "fungible"]
+        o = m[m.policy == "aos_tqd"]
+        rows = []
+        for th in sorted(f.theta.unique()):
+            for _, r in f[f.theta == th].sort_values("load_scale").iterrows():
+                oo = o[(o.theta == th) & (o.load_scale == r.load_scale)]
+                rows.append((float(r.load_scale), float(th),
+                             float(r.mislabelled_fraction),
+                             float(oo.mislabelled_fraction.iloc[0]),
+                             float(r.goodput_mbps),
+                             float(oo.goodput_mbps.iloc[0])))
+        _w("mislabel.dat", "load theta mis_pooled mis_ours gp_pooled gp_ours",
+           rows)
+        print(f"    pooled mislabelling {f.mislabelled_fraction.min():.3f}"
+              f" to {f.mislabelled_fraction.max():.3f}; ours "
+              f"{o.mislabelled_fraction.max():.3f}")
+
+    # (7) mechanism trace on one ground-station edge: pass-driven quantum
+    #     supply, manufactured supply, and how service splits between them
+    tp = SIM / "results_tqd" / "trace_gs.csv"
+    if tp.exists():
+        t = pd.read_csv(tp)
+        t["hour"] = t.t / 3600.0
+        _w("mechanism2.dat",
+           "hour qkd mfg servedQ servedP total age xq",
+           [(float(r.hour), float(r.qkd), float(r.mfg), float(r.servedQ),
+             float(r.servedP), float(r.servedQ + r.servedP),
+             float(r.ageQ), float(r.xq)) for _, r in t.iterrows()])
+
+    print(f"\nexported to {OUT}")
+
+
+if __name__ == "__main__":
+    main()
