@@ -81,4 +81,9 @@ sim/results_lyap_scratch/
 sim/data/era5/
 
 # Reference PDFs: copyrighted, kept locally, never redistributed.
+# Third-party papers live in refs/; a stray copy at the top level was
+# committed once by accident, so both are excluded by pattern rather
+# than by directory.
 refs/
+*.pdf
+!sim/figs/*.pdf
