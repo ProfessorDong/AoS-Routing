@@ -119,7 +119,7 @@ def keybps_to_units(bps: float, dt: float) -> float:
 # credited to each of them in full, which divides eta by four.  And key
 # establishment is charged at both endpoints, which roughly halves the
 # effective manufacturing budget.  The conference version offered
-# 245 Mbps, outside the corrected region by a factor of forty.
+# 245 Mbps, eleven times the corrected 21.4 Mbps boundary.
 NOMINAL_TOTAL_MBPS = 6.25
 
 
