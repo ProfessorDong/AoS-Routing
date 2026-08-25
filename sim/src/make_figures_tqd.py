@@ -51,12 +51,23 @@ def main() -> None:
     a = st[st.study == "A"]
     ours = a[a.policy == "aos_tqd"].sort_values("offered_mbps")
     prior = a[a.policy == "tqd"].sort_values("offered_mbps")
+    # A stable queue has non-positive backlog growth, and log(0) is
+    # unbounded, so clamping those to zero made pgfplots drop the points
+    # silently.  One of them was the last stable load below the
+    # quantum-only boundary, so the curve was drawn straight through the
+    # knee it exists to show.  They are floored onto the axis instead,
+    # and the caption says so.
+    FLOOR = 2.5e-3
     _w("loadsweep2.dat",
        "offered slope_ours slope_prior gp_ours gp_prior",
-       [(float(o.offered_mbps), max(0.0, float(o.phys_slope)),
-         max(0.0, float(p.phys_slope)), float(o.goodput_mbps),
+       [(float(o.offered_mbps), max(FLOOR, float(o.phys_slope)),
+         max(FLOOR, float(p.phys_slope)), float(o.goodput_mbps),
          float(p.goodput_mbps))
         for (_, o), (_, p) in zip(ours.iterrows(), prior.iterrows())])
+    nfl = sum(1 for (_, o), (_, p) in zip(ours.iterrows(), prior.iterrows())
+              for v in (o.phys_slope, p.phys_slope) if v <= FLOOR)
+    print(f"    {nfl} of {2*len(ours)} points had non-positive growth and "
+          f"sit on the axis floor")
     print(f"    boundaries: ours {ours.lp_boundary_mbps.iloc[0]:.2f}, "
           f"prior {tqd_boundary:.2f} Mbps")
 
