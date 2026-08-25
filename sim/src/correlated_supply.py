@@ -32,6 +32,7 @@ Run:  python3 correlated_supply.py
 from __future__ import annotations
 
 import csv
+from multiprocessing import Pool
 from pathlib import Path
 
 import numpy as np
@@ -42,6 +43,14 @@ OUT = Path(__file__).resolve().parent.parent / "results_tqd"
 HORIZON = 43200
 # Thirteen four-week offsets step through the reanalysis year once.
 REALIZATIONS = list(range(13))
+
+
+def _one_run(args):
+    model, s, scale = args
+    sched, _ = A.build_qkd_schedule(weather_seed=s, hours=12,
+                                    weather_model=model)
+    return A.run(A.TqdConfig(horizon_s=HORIZON, seed=s, theta=0.5,
+                             load_scale=scale), sched)
 
 
 def main() -> None:
@@ -84,31 +93,36 @@ def main() -> None:
                                                            1e-9))))
 
     # Consequence: hold the load at the ISCCP operating point and run
-    # each weather realization of each model.
+    # each weather realization of each model.  The miscertification rate
+    # is recorded here too: the figure claims the policy never
+    # miscertifies under either weather model, and that should rest on
+    # these runs rather than on the separate sweep of Section V-D.
     load_mbps = A.NOMINAL_TOTAL_MBPS
+    scale = load_mbps / nominal
+    jobs = [(m, s, scale) for m in ("isccp", "era5") for s in REALIZATIONS]
+    with Pool(min(len(jobs), 8)) as pool:
+        out = pool.map(_one_run, jobs)
     runs = []
+    for (model, s, _), r in zip(jobs, out):
+        runs.append(dict(model=model, realization=s,
+                         goodput_mbps=r["goodput_mbps"],
+                         its_fraction=r["its_fraction"],
+                         mislabelled_fraction=r["mislabelled_fraction"],
+                         mean_aos=r["mean_aos"],
+                         phys_slope=r["phys_slope"],
+                         mean_virt=r["mean_virt"]))
+        print(f"  {model:6s} r{s:02d} goodput {r['goodput_mbps']:6.2f} "
+              f"its {r['its_fraction']:5.3f} mislabelled "
+              f"{r['mislabelled_fraction']:.4f} "
+              f"slope {r['phys_slope']:9.2e}")
     for model in ("isccp", "era5"):
-        for s in REALIZATIONS:
-            sched, _ = A.build_qkd_schedule(weather_seed=s, hours=12,
-                                            weather_model=model)
-            scale = load_mbps / nominal
-            r = A.run(A.TqdConfig(horizon_s=HORIZON, seed=s, theta=0.5,
-                                  load_scale=scale), sched)
-            runs.append(dict(model=model, realization=s,
-                             goodput_mbps=r["goodput_mbps"],
-                             its_fraction=r["its_fraction"],
-                             mean_aos=r["mean_aos"],
-                             phys_slope=r["phys_slope"],
-                             mean_virt=r["mean_virt"]))
-            print(f"  {model:6s} r{s:02d} goodput {r['goodput_mbps']:6.2f} "
-                  f"its {r['its_fraction']:5.3f} aos {r['mean_aos']:6.1f} "
-                  f"slope {r['phys_slope']:9.2e}")
-    for model in ("isccp", "era5"):
-        g = [x["goodput_mbps"] for x in runs if x["model"] == model]
-        sl = [x["phys_slope"] for x in runs if x["model"] == model]
+        sub = [x for x in runs if x["model"] == model]
+        g = [x["goodput_mbps"] for x in sub]
+        sl = [x["phys_slope"] for x in sub]
+        ms = [x["mislabelled_fraction"] for x in sub]
         print(f"{model:6s} goodput mean {np.mean(g):6.2f} "
-              f"cv {np.std(g)/np.mean(g):5.3f} | worst backlog slope "
-              f"{max(sl):9.2e}")
+              f"cv {np.std(g)/np.mean(g):5.3f} | spread {max(g)/min(g):4.2f}x "
+              f"| worst slope {max(sl):9.2e} | worst mislabelled {max(ms):.4f}")
 
     with open(OUT / "correlated_eta.csv", "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=list(rows[0].keys()))
