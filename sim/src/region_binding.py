@@ -139,5 +139,35 @@ def sweep_theta():
           " boundary here is never a bandwidth limit")
 
 
+def perturb_at_plateau():
+    """Figure 6: which resource limits the boundary once it plateaus.
+
+    Sweeping the budget shows the boundary stop rising, but flatness
+    alone does not say what took over.  Raising each resource by ten
+    percent in turn does: at the plateau the compute budget has no
+    marginal value at all and the quantum supply has full marginal
+    value, which is Theorem 2(ii) binding.
+    """
+    import numpy as np
+    nominal = sum(f.arrival_bps for f in flows) / 1e6
+    base = A.TqdConfig().node_budget_units
+
+    def bnd(eta_, bs):
+        cfg = A.TqdConfig(theta=0.5, manufacture=bs > 0,
+                          node_budget_units=base * bs,
+                          edge_h_max_units=base * bs)
+        return A.region_boundary(eta_, cfg, flows, edges, nodes) * nominal
+
+    print("\n=== marginal value of each resource, theta = 1/2")
+    for bs, where in ((1.0, "at the plateau"), (0.0625, "below the knee")):
+        b0 = bnd(eta, bs)
+        db = bnd(eta, bs * 1.10)
+        de = bnd({k: v * 1.10 for k, v in eta.items()}, bs)
+        print(f"  budget {bs:6.4f} core ({where}): baseline {b0:7.3f} Mbps, "
+              f"compute +10% -> {100*(db/b0-1):+6.2f}%, "
+              f"quantum +10% -> {100*(de/b0-1):+6.2f}%")
+
+
 if __name__ == "__main__":
     sweep_theta()
+    perturb_at_plateau()
