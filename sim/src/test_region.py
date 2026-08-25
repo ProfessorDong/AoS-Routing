@@ -2,14 +2,15 @@
 
 Three claims are checked here before they are asserted in the paper.
 
-  1. SEPARABILITY AND THE MANUFACTURING RULE.  In the per-slot
-     max-weight problem the routing decision and the key-manufacturing
-     decision appear in separate terms of the drift bound, so they may
-     be optimized independently; and the manufacturing sub-problem,
-     max_{h in H} sum_e Xp_e h_e over the per-node budget polytope
-     H = {h >= 0 : sum_{e out of i} c_e h_e <= B_i, h_e <= hmax_e},
-     is solved exactly by filling edges in decreasing order of
-     Xp_e / c_e.  Checked against a general-purpose LP.
+  1. THE MANUFACTURING RULE, AND WHERE IT STOPS WORKING.  With the
+     key-establishment cost charged to one endpoint the budget polytope
+     is a product over nodes, and the sub-problem max_{h in H} sum_e
+     w_e h_e is solved exactly by filling edges in decreasing w_e / c_e.
+     Checked against a general-purpose LP.  Charging BOTH endpoints, as
+     FIPS 203 requires, couples the nodes and the greedy stops being
+     optimal; the size of the loss is measured on the evaluation
+     instance rather than assumed, because it decides whether the closed
+     form could have been kept as an approximation.
 
   2. SPECIALIZATION AND STRICT ENLARGEMENT.  With no manufacturing
      budget and every class requiring information-theoretic keys, the
@@ -69,7 +70,7 @@ def manufacture_lp(w, c, hmax, budget):
 
 
 def test_manufacturing(trials: int = 2000) -> None:
-    print("\n[1] manufacturing rule: greedy by (Xp-V.nu.c)/c vs LP, signed weights")
+    print("\n[1a] Proposition 2(ii): one-sided cost, greedy vs LP, signed weights")
     worst = 0.0
     for _ in range(trials):
         n = int(RNG.integers(1, 8))
@@ -86,8 +87,50 @@ def test_manufacturing(trials: int = 2000) -> None:
         worst = max(worst, (vl - vg) / max(abs(vl), 1e-12))
     print(f"    {trials} random instances, worst relative shortfall of the "
           f"greedy: {worst:.3e}")
-    assert worst < 1e-9, "greedy is not optimal"
-    print("    OK: the greedy rule attains the LP optimum")
+    assert worst < 1e-9, "greedy is not optimal when the budgets decouple"
+    print("    OK: with the head cost zero the greedy attains the LP optimum")
+
+
+def test_manufacturing_coupled() -> None:
+    """Proposition 2(iii): the greedy stops being optimal at both endpoints.
+
+    This is a negative result and it is the reason the algorithm solves
+    the packing program rather than filling by ratio.  Reported, not
+    assumed, because the size of the loss decides whether the closed
+    form could have been kept as an approximation.
+
+    The loss is load dependent, which is worth knowing.  At nominal load
+    the manufactured demand is spread thinly enough that no node budget
+    binds two competing edges at once and the greedy is exact.  Under
+    stress it binds often, and the greedy forfeits up to half the
+    objective.  A closed form that is exact only where the resource is
+    not scarce is not a closed form worth having.
+    """
+    print("\n[1b] Proposition 2(iii): both endpoints charged, greedy vs exact LP")
+    import aos_tqd as A
+    nodes, edges = A.default_topology()
+    flows = A.scaled_flows()
+    sched, _ = A.build_qkd_schedule(weather_seed=0, hours=12)
+    worst_overall = 0.0
+    for load in (1.0, 3.0, 6.0):
+        net = A.HybridNetwork(nodes, edges, flows,
+                              A.TqdConfig(theta=0.5, load_scale=load), sched)
+        gaps = []
+        for t in range(3000):
+            net.step(t)
+            if t % 50 == 0 and t > 200:
+                gaps.append(A.manufacture_gap(net)[0])
+        g = np.array(gaps)
+        worst_overall = max(worst_overall, float(g.max()))
+        print(f"    load {load:4.1f}x nominal: greedy forfeits "
+              f"{g.mean():.3f} of the objective on average, "
+              f"{g.max():.3f} at worst, nonzero in "
+              f"{int((g > 1e-9).sum())} of {len(g)} sampled slots")
+    assert worst_overall > 0.1, \
+        "expected the greedy to be badly suboptimal once both endpoints pay"
+    print("    OK: exact where compute is plentiful, wrong by up to "
+          f"{worst_overall:.0%} where it is scarce, so the closed form of "
+          "(ii) is not usable here")
 
 
 # ---------------------------------------------------------------------------
@@ -236,5 +279,6 @@ def test_region() -> None:
 
 if __name__ == "__main__":
     test_manufacturing()
+    test_manufacturing_coupled()
     test_region()
     print("\nall checks passed")

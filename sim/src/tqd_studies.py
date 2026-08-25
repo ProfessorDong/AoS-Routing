@@ -30,6 +30,7 @@ Run: python3 tqd_studies.py
 from __future__ import annotations
 
 import csv
+from multiprocessing import Pool
 from pathlib import Path
 
 import numpy as np
@@ -37,22 +38,35 @@ import numpy as np
 import aos_tqd as A
 
 OUT = Path(__file__).resolve().parent.parent / "results_tqd"
-SEEDS = [0, 1, 2]
+SEEDS = [0, 1, 2, 3, 4]
 # The whole pass schedule, so that the time average of the supply over a
 # run IS the stationary mean the capacity region is written in.  Over a
 # shorter window the two differ by up to 40 percent here, because
 # satellite supply is strongly non-stationary within a day, and the
 # measured boundary would then be compared against the wrong number.
 HORIZON = 43200
+# The controlled comparisons run on the stationary ISCCP draw, whose
+# per-station eta varies by under 6 percent across weather realizations.
+# Reanalysis-driven correlated supply has a comparable MEAN but a
+# hundredfold spread between 12 h windows, so it is studied on its own
+# in correlated_supply.py rather than used as the common baseline.
+WEATHER = "isccp"
 
 
 def _mean(rows, k):
     return float(np.mean([r[k] for r in rows]))
 
 
+def _one(args):
+    sched_s, s, kw = args
+    return A.run(A.TqdConfig(horizon_s=HORIZON, seed=s, **kw), sched_s)
+
+
 def _run(sched, **kw):
-    return [A.run(A.TqdConfig(horizon_s=HORIZON, seed=s, **kw), sched[s])
-            for s in SEEDS]
+    # Seeds are independent, and each 12 h run costs about a minute and
+    # a half now that manufacturing is an exact program per slot.
+    with Pool(len(SEEDS)) as pool:
+        return pool.map(_one, [(sched[s], s, kw) for s in SEEDS])
 
 
 def _boundary(eta, edges, nodes, flows, **kw):
@@ -61,7 +75,8 @@ def _boundary(eta, edges, nodes, flows, **kw):
 
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
-    sched = {s: A.build_qkd_schedule(weather_seed=s, hours=12)[0]
+    sched = {s: A.build_qkd_schedule(weather_seed=s, hours=12,
+                                     weather_model=WEATHER)[0]
              for s in SEEDS}
     nodes, edges = A.default_topology()
     flows = A.scaled_flows()
@@ -114,7 +129,7 @@ def main() -> None:
     # ---- B. budget sweep ------------------------------------------------
     print("\nB budget sweep (theta = 1/2, load 2x nominal)")
     base = A.TqdConfig().node_budget_units
-    for bs in (0.0, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0):
+    for bs in (0.0, 0.03125, 0.0625, 0.125, 0.25, 0.5, 1.0, 2.0):
         b = _boundary(eta, edges, nodes, flows, theta=0.5,
                       manufacture=bs > 0,
                       node_budget_units=base * bs,

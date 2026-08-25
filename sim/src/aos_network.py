@@ -79,7 +79,8 @@ from scipy.optimize import linprog
 
 from constellation import (
     DEFAULT_GROUND_STATIONS, DEFAULT_SHELL, GroundStation,
-    build_satellites, cloud_transmittance, constellation_epoch_tt_jd,
+    CLEAR_SKY_TAU_ZENITH, build_satellites, cloud_transmittance,
+    constellation_epoch_tt_jd,
     load_real_or_synthetic, make_walker_tles, passes, qkd_rate_bps,
 )
 from skyfield.api import load
@@ -186,11 +187,76 @@ def default_flows() -> list[Flow]:
 # Pre-computed pass-window schedule
 # ---------------------------------------------------------------------------
 
+_ERA5_CACHE: dict | None = None
+
+
+def load_era5_tau(path: str | None = None) -> dict | None:
+    """Hourly slant-column optical depth per ground station, from ERA5.
+
+    Returns a dict station -> numpy array of tau on a regular hourly
+    grid, or None if the derived file has not been built.  Produced by
+    `fetch_era5.py` followed by `era5_to_transmittance.py`.
+    """
+    global _ERA5_CACHE
+    if _ERA5_CACHE is not None:
+        return _ERA5_CACHE
+    import pandas as pd
+    p = Path(path) if path else Path(__file__).resolve().parents[1] \
+        / "data" / "era5_transmittance.csv"
+    if not p.exists():
+        return None
+    df = pd.read_csv(p, parse_dates=["time"])
+    _ERA5_CACHE = {s: (g.sort_values("time")["tau"].to_numpy(),
+                       g.sort_values("time")["tcc"].to_numpy())
+                   for s, g in df.groupby("station")}
+    return _ERA5_CACHE
+
+
+def era5_transmittance(era5: dict, station: str, hours_from_start: float,
+                       elev_deg: float, week_offset: int = 0,
+                       rng: np.random.Generator | None = None) -> float:
+    """Beer-Lambert transmittance on the reanalysis column at a pass.
+
+    A quarter-degree cell is far wider than a QKD beam, so the grid-box
+    MEAN optical depth must not be applied to the beam as though the
+    cloud were uniform.  Doing so is a Jensen error and it is severe:
+    transmittance is convex in optical depth, and at these sites the
+    mean depth is dominated by the thick tail, so a uniform column makes
+    a partly cloudy hour look opaque when a beam through the clear
+    fraction would get through untouched.
+
+    The beam is therefore treated as intersecting cloud with probability
+    tcc, the reanalysis cloud fraction, and passing through clear air
+    otherwise.  In-cloud optical depth is recovered from the grid-box
+    mean by dividing out the fraction.  Temporal correlation survives
+    because tcc is itself strongly autocorrelated.
+
+    The reanalysis is hourly and a pass lasts a few minutes, so the
+    containing hour is used without interpolation.
+    """
+    rec = era5.get(station)
+    if rec is None or len(rec[0]) == 0 or elev_deg <= 0.0:
+        return 0.0
+    tau_series, tcc_series = rec
+    i = (int(hours_from_start) + week_offset * 168) % len(tau_series)
+    tau_tot = float(tau_series[i])
+    frac = min(max(float(tcc_series[i]), 0.0), 1.0)
+    tau_cloud = max(tau_tot - CLEAR_SKY_TAU_ZENITH, 0.0)
+    airmass = 1.0 / math.sin(math.radians(elev_deg))
+    rng = rng or np.random.default_rng(i)
+    if frac > 1e-3 and rng.random() < frac:
+        tau = CLEAR_SKY_TAU_ZENITH + tau_cloud / frac     # in-cloud depth
+    else:
+        tau = CLEAR_SKY_TAU_ZENITH
+    return float(math.exp(-tau * airmass))
+
+
 def build_qkd_schedule(start_jd: float | None = None, hours: float = 12.0,
                        min_elev_deg: float = 25.0,
                        max_sats: int | None = None,
                        weather_seed: int = 0,
-                       prefer_real: bool = True
+                       prefer_real: bool = True,
+                       weather_model: str = "isccp"
                        ) -> tuple[dict, str]:
     """Return ``(schedule, provenance)``.
 
@@ -223,13 +289,34 @@ def build_qkd_schedule(start_jd: float | None = None, hours: float = 12.0,
     provenance += (f"  Propagated from TT JD {start_jd:.5f} "
                    f"({t_start.utc_strftime('%Y-%m-%d %H:%M UTC')}), "
                    f"{hours:g} h window, min elevation {min_elev_deg:g} deg.")
+    era5 = load_era5_tau() if weather_model == "era5" else None
+    # Spread the seeds evenly over the reanalysis year rather than
+    # over consecutive weeks: correlated cloud has an e-folding time
+    # of 9 to 14 h here, so adjacent weeks are nearly independent but
+    # consecutive ones still share a season.
+    week_offset = (weather_seed * 4) % 52
+    if era5 is not None:
+        # Each seed reads a different week of the reanalysis year, so
+        # seeds vary the weather realization while the orbital geometry
+        # stays anchored at the element-set epoch.
+        provenance += (f"  Cloud from ERA5 reanalysis, week offset "
+                       f"{week_offset}.")
     sched = {g.name: [] for g in DEFAULT_GROUND_STATIONS}
     for sat in sats:
         for gs in DEFAULT_GROUND_STATIONS:
             for rise_tt, set_tt, peak_elev in passes(sat, gs, t_start, t_end,
                                                      min_elev_deg=min_elev_deg):
-                # Physics-based cloud transmittance (see constellation.py)
-                weather = cloud_transmittance(peak_elev, rng=rng)
+                if era5 is not None:
+                    # Beer-Lambert on the reanalysis slant column, so
+                    # consecutive passes over a site inherit the real
+                    # persistence of the cloud field instead of being
+                    # redrawn independently.
+                    hours = (0.5 * (rise_tt + set_tt) - start_jd) * 24.0
+                    weather = era5_transmittance(
+                        era5, gs.name, hours, peak_elev,
+                        week_offset=week_offset, rng=rng)
+                else:
+                    weather = cloud_transmittance(peak_elev, rng=rng)
                 avg_rate = qkd_rate_bps(peak_elev, weather=weather) * 0.6
                 t0_s = (rise_tt - start_jd) * 86400.0
                 t1_s = (set_tt  - start_jd) * 86400.0

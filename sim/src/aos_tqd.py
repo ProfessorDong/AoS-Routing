@@ -14,10 +14,9 @@ Two species of key material, which are not interchangeable.
   P-keys  are MANUFACTURED by running ML-KEM under a per-node
           encapsulation budget, and are computationally secure.
 
-A delivered block is information-theoretically graded only if EVERY hop
-on its route encrypted it with a Q-key, so the two species are
-complements rather than substitutes: no compute budget moves a single
-block of graded traffic.
+A delivered block is QKD-keyed only if EVERY hop on its route encrypted
+it with a Q-key, so the two species are not fungible and substitute only
+one way: no compute budget moves a single block of graded traffic.
 
 Each edge is split three ways, after the tandem-queue decomposition of
 Akhtar et al. (IEEE/ACM ToN 31(5):2281-2296, 2023) extended to two
@@ -33,9 +32,20 @@ Routing is a minimum-weight path on
   W_e = Yt[e] +      Xqt[e] + V.chi*age_e                          graded
 
 over the virtual (precedence-relaxed) queues, and the inner minimum is
-the species decision.  Manufacturing is a per-node continuous knapsack
-on (Xpt[e] - V.nu*c_e)/c_e, which is demand gating derived rather than
-imposed.
+the species decision.  age_e is the mean age of the material the edge is
+about to SPEND, not of the material it holds.
+
+Manufacturing maximizes sum_e (Xpt[e] - V.nu*c_e) h_e over the budget
+polytope.  Because ML-KEM charges both endpoints, that polytope is not a
+product over nodes and the closed-form knapsack of the one-sided model
+is not optimal; the program is solved exactly.  What survives is the
+pruning of edges with nonpositive weight, which is demand gating derived
+rather than imposed.
+
+Blocks are served nearest-to-origin first at EVERY arc, internal ones
+included.  That is what carries virtual stability to the physical queues
+once key material expires, since the pathwise domination the prior work
+uses needs keys to be stored forever.
 
 UNITS.  Everything is in BLOCKS.  One block is 8 kB of payload under one
 256-bit session key, so one key unit encrypts one block and no
@@ -60,9 +70,33 @@ from aos_network import (DEFAULT_GROUND_STATIONS, Edge, build_qkd_schedule,
 # --- unit system -----------------------------------------------------------
 PAYLOAD_BITS_PER_BLOCK = 8 * 1024 * 8      # 8 kB of payload
 KEY_BITS_PER_UNIT = 256                    # one AES-256 session key
-# One ML-KEM-768 encapsulation yields one shared secret, hence one key
-# unit, so manufacturing cost is one operation per unit on every edge.
-OPS_PER_KEY_UNIT = 1.0
+# ML-KEM is a two-party mechanism, and FIPS 203 splits the work across
+# both endpoints: the responder runs KeyGen and Decaps, the initiator
+# runs Encaps.  One key unit on edge (i,j) therefore charges BOTH i and
+# j, and the per-node budgets no longer decouple across nodes.  Earlier
+# versions of this model charged the tail node only, which understated
+# the cost of a key unit by a factor of two and made the manufacturing
+# subproblem separable when it is not.
+OPS_TAIL = 1.0      # Encaps, at the node the edge leaves
+OPS_HEAD = 1.0      # KeyGen + Decaps, at the node the edge enters
+OPS_PER_KEY_UNIT = OPS_TAIL + OPS_HEAD      # total KEM work per unit
+
+
+def qkd_edges_by_station(edges) -> dict:
+    """Quantum-capable edges incident on each ground station.
+
+    A station's pass yield is shared across exactly these edges, so this
+    map is what keeps one pass from being counted several times.
+    """
+    gs = {g.name for g in DEFAULT_GROUND_STATIONS}
+    out = {g: [] for g in gs}
+    for e in edges:
+        if not e.qkd_capable:
+            continue
+        for g in (e.src, e.dst):
+            if g in gs:
+                out[g].append(e.key())
+    return out
 
 
 def bps_to_blocks(bps: float, dt: float) -> float:
@@ -76,12 +110,17 @@ def keybps_to_units(bps: float, dt: float) -> float:
 # Nominal offered load, in Mbps, aggregated over the five flows and kept
 # in their original proportions.  It is set from the capacity region
 # rather than inherited: the linear program of `region_boundary` puts the
-# boundary at 36.5 Mbps for theta = 1/2 with the node budget below, and
-# the nominal point sits at 0.68 of it.  The conference and earlier
-# journal versions offered 245 Mbps, which is outside this region by a
-# factor of seven; they could do so only because every edge was given its
-# own post-quantum refresh and the two key species were pooled.
-NOMINAL_TOTAL_MBPS = 25.0
+# boundary at 21.4 Mbps for theta = 1/2 with the node budget below, and
+# the nominal point sits at 0.29 of it.
+#
+# Two corrections moved this number down from the 25 Mbps of the first
+# journal draft.  A ground station's pass yield is one key stream and is
+# now divided among its four quantum-capable edges instead of being
+# credited to each of them in full, which divides eta by four.  And key
+# establishment is charged at both endpoints, which roughly halves the
+# effective manufacturing budget.  The conference version offered
+# 245 Mbps, outside the corrected region by a factor of forty.
+NOMINAL_TOTAL_MBPS = 6.25
 
 
 def scaled_flows(total_mbps: float = NOMINAL_TOTAL_MBPS):
@@ -163,23 +202,54 @@ class KeyBank:
         return (t - self.units[0][0]) if self.units else 0.0
 
     def mean_age(self, t: int) -> float:
-        """Unit-weighted mean age of the bank.
+        """Unit-weighted mean age of the whole bank.
 
-        This is the surrogate the routing weight uses for alpha_e, the
-        age of the material a block will actually consume.  The age of
-        the OLDEST unit is a poor surrogate under freshest-first
-        consumption, because a stale unit simply sits at the bottom of
-        the bank until it expires and pins the surrogate at T_a whatever
-        the edge is really spending.  The mean moves with both the
-        recency of supply and the amount of old material held, which is
-        what the routing decision needs to see.
+        Kept for the traces.  It is NOT the routing surrogate: see
+        `marginal_age`, which fixes an ordering defect this measure has.
         """
         tot = sum(u[1] for u in self.units)
         if tot <= 0:
             return 0.0
         return sum((t - g) * a for g, a, _ in self.units) / tot
 
-    def consume(self, t: int, amount: float) -> tuple[float, float]:
+    def marginal_age(self, t: int, demand: float) -> float:
+        """Unit-weighted mean age of the freshest `demand` units.
+
+        This is the surrogate the routing weight uses for alpha_e, and
+        it is the age of the material the edge is about to spend rather
+        than of the material it happens to hold.  Two earlier choices
+        were both wrong, in opposite ways.
+
+        The age of the OLDEST unit is meaningless under freshest-first
+        consumption: a stale unit sits at the bottom of the bank until
+        it expires and pins the surrogate at T_a whatever the edge is
+        really spending.
+
+        The mean over the WHOLE bank can reverse the true ordering.  A
+        bank holding ages {0, T_a} has mean T_a/2 but will next spend a
+        unit of age 0, while a bank holding {T_a/3, T_a/3} has the lower
+        mean T_a/3 and will next spend a unit three times older.  Taking
+        the mean over only the units that the current backlog would
+        consume removes that inversion, because it looks at the same
+        units freshest-first service will actually reach.
+
+        An empty bank returns 0.  Scarcity is already priced by the
+        backlog term Xqt of the routing weight; charging it again here
+        would double-count the same shortage.
+        """
+        if demand <= 0 or not self.units:
+            return 0.0
+        left, wsum, tot = demand, 0.0, 0.0
+        for g, a, _ in reversed(self.units):     # freshest first
+            use = min(a, left)
+            wsum += (t - g) * use
+            tot += use
+            left -= use
+            if left <= 1e-12:
+                break
+        return wsum / tot if tot > 0 else 0.0
+
+    def consume(self, t: int, amount: float) -> tuple[float, float, float]:
         """Take `amount` units, freshest first.
 
         Returns (taken, age_of_oldest_unit_taken, taken_that_were_P).
@@ -207,6 +277,58 @@ class KeyBank:
 # ---------------------------------------------------------------------------
 # a batch of blocks travelling together on one marked route
 # ---------------------------------------------------------------------------
+class HopQueue:
+    """Blocks waiting at one arc, held in extended-nearest-to-origin order.
+
+    ENTO priority is the number of arcs a block has already crossed, and
+    that number is small and bounded by the longest admissible route, so
+    the queue is a bucket per hop rather than a sorted list.  Insertion
+    and service are O(1) amortized.  Sorting instead is correct but
+    quadratic over a run, because an overloaded arc accumulates backlog
+    linearly in time and would be resorted every slot.
+
+    Within a bucket the order is first in, first out, which is what a
+    stable sort on the hop count would also give.
+    """
+
+    __slots__ = ("buckets", "amount")
+
+    def __init__(self) -> None:
+        self.buckets: dict[int, deque] = {}
+        self.amount = 0.0          # running total, so weights stay O(1)
+
+    def __len__(self) -> int:
+        return sum(len(b) for b in self.buckets.values())
+
+    def __iter__(self):
+        for h in sorted(self.buckets):
+            yield from self.buckets[h]
+
+    def append(self, b) -> None:
+        self.buckets.setdefault(b.hop, deque()).append(b)
+        self.amount += b.amount
+
+    def head(self):
+        """The block ENTO would serve next, or None."""
+        for h in sorted(self.buckets):
+            q = self.buckets[h]
+            if q:
+                return q[0]
+            del self.buckets[h]
+            return self.head()
+        return None
+
+    def take(self, b, got: float) -> None:
+        """Record that `got` of block `b` at the head was served."""
+        self.amount -= got
+        if got >= b.amount - 1e-12:
+            self.buckets[b.hop].popleft()
+            if not self.buckets[b.hop]:
+                del self.buckets[b.hop]
+        else:
+            b.amount -= got
+
+
 @dataclasses.dataclass
 class Batch:
     cls: str
@@ -227,13 +349,22 @@ class HybridNetwork:
         self.out_edges = defaultdict(list)
         for e in edges:
             self.out_edges[e.src].append(e)
+        self.qkd_edges_of = qkd_edges_by_station(edges)
+        # Transformed arcs that can never be served are deleted, not
+        # merely disfavoured.  An edge outside the quantum overlay has
+        # eta_e = 0, so its q-arc has service rate identically zero and a
+        # graded block routed onto it waits forever.  Leaving the arc in
+        # place lets Dijkstra pick it whenever the queue terms make it
+        # look cheap, which strands traffic on a route that no feasible
+        # decomposition would ever use.
+        self.q_arcs = {e.key() for e in edges if e.qkd_capable}
 
         ek = [e.key() for e in edges]
         self.C = {k: bps_to_blocks(self.eidx[k].capacity_bps, cfg.dt_s)
                   for k in ek}
-        self.Xq = {k: deque() for k in ek}
-        self.Xp = {k: deque() for k in ek}
-        self.Y = {k: deque() for k in ek}
+        self.Xq = {k: HopQueue() for k in ek}
+        self.Xp = {k: HopQueue() for k in ek}
+        self.Y = {k: HopQueue() for k in ek}
         self.bq = {k: KeyBank(cfg.T_a) for k in ek}
         self.bp = {k: KeyBank(cfg.T_a) for k in ek}
         self.Xqt = {k: 0.0 for k in ek}
@@ -267,11 +398,16 @@ class HybridNetwork:
             k = e.key()
             if e.src in blocked or e.dst in blocked:
                 continue
-            age = self.bq[k].mean_age(t)
+            # the age of the material this edge is about to spend, not
+            # of the material it happens to hold
+            demand = max(self.Xq[k].amount, 1.0)
+            age = self.bq[k].marginal_age(t, demand)
             cq = self.Xqt[k] + cfg.V_chi * min(age, cfg.T_a)
             cp = self.Xpt[k] + cfg.V_chi * cfg.T_a
-            Wq[k] = self.Yt[k] + cq
-            if cp < cq:
+            has_q = k in self.q_arcs
+            if has_q:
+                Wq[k] = self.Yt[k] + cq            # graded traffic only
+            if cp < cq or not has_q:
                 Wf[k], spec[k] = self.Yt[k] + cp, "P"
             else:
                 Wf[k], spec[k] = self.Yt[k] + cq, "Q"
@@ -308,28 +444,58 @@ class HybridNetwork:
         return seq if seq and seq[0] == src else None
 
     # -- manufacturing ----------------------------------------------------
-    def _manufacture(self) -> dict:
-        """Proposition 2: per-node continuous knapsack on (Xpt - V.nu.c)/c.
+    def manufacture_weights(self) -> dict:
+        """The weights of the manufacturing subproblem, w_e = Xpt_e - V.nu.c_e."""
+        return {e.key(): self.Xpt[e.key()]
+                - self.cfg.V_nu * OPS_PER_KEY_UNIT for e in self.edges}
 
-        Edges whose waiting backlog does not cover the marginal cost of
-        an encapsulation are skipped, which is exactly demand gating.
+    def _manufacture_greedy(self) -> dict:
+        """The per-node ratio-greedy fill, which is exact only one-sided.
+
+        Kept so that the cost of using it anyway can be measured.  See
+        `manufacture_gap`: once both endpoints are charged it is exact
+        at nominal load, where no node budget binds two competing edges
+        at once, and forfeits up to half the max-weight objective under
+        stress, where they do.
         """
         cfg = self.cfg
         h = {e.key(): 0.0 for e in self.edges}
         if not cfg.manufacture:
             return h
-        for n in self.nodes:
-            outs = [e.key() for e in self.out_edges.get(n, [])]
-            if not outs:
+        w = self.manufacture_weights()
+        left = {n: cfg.node_budget_units for n in self.nodes}
+        for k in sorted(w, key=lambda x: -w[x] / OPS_PER_KEY_UNIT):
+            if w[k] <= 0:
+                break
+            cap = min(cfg.edge_h_max_units,
+                      left[k[0]] / OPS_TAIL if OPS_TAIL > 0 else math.inf,
+                      left[k[1]] / OPS_HEAD if OPS_HEAD > 0 else math.inf)
+            if cap <= 1e-12:
                 continue
-            w = {k: self.Xpt[k] - cfg.V_nu * OPS_PER_KEY_UNIT for k in outs}
-            left = cfg.node_budget_units
-            for k in sorted(outs, key=lambda x: -w[x] / OPS_PER_KEY_UNIT):
-                if left <= 0 or w[k] <= 0:
-                    break
-                take = min(cfg.edge_h_max_units, left / OPS_PER_KEY_UNIT)
-                h[k] = take
-                left -= OPS_PER_KEY_UNIT * take
+            h[k] = cap
+            left[k[0]] -= OPS_TAIL * cap
+            left[k[1]] -= OPS_HEAD * cap
+        return h
+
+    def _manufacture(self) -> dict:
+        """Maximise sum_e w_e h_e over the budget polytope H, exactly.
+
+        Charging the KEM at both endpoints costs the per-node
+        decomposition: H is no longer a Cartesian product over nodes, so
+        the closed-form knapsack of the one-sided model is a heuristic
+        here and not a good one.  The drift argument needs the maximum,
+        not an approximation of it, so this solves the packing program
+        of Proposition 2(iii).
+
+        What survives from the closed form is the pruning rule.  Every
+        edge whose waiting backlog fails to cover the marginal cost is
+        set to zero, because raising it cannot raise the objective and
+        only consumes budget at two nodes, and that is demand gating.
+        """
+        if not self.cfg.manufacture:
+            return {e.key(): 0.0 for e in self.edges}
+        h, _ = manufacture_lp(self.manufacture_weights(), self.cfg,
+                              self.nodes, [e.key() for e in self.edges])
         return h
 
     # -- one slot ---------------------------------------------------------
@@ -372,15 +538,19 @@ class HybridNetwork:
         h = self._manufacture()
 
         # 3. supply --------------------------------------------------------
-        gs_names = {g.name for g in DEFAULT_GROUND_STATIONS}
         qkd_units = defaultdict(float)
-        for gs in gs_names:
+        for gs, inc in self.qkd_edges_of.items():
             rate = qkd_rate_at(t, self.qkd_schedule.get(gs, [])) * wmult
-            if rate <= 0:
+            if rate <= 0 or not inc:
                 continue
-            for e in self.edges:
-                if e.qkd_capable and (e.src == gs or e.dst == gs):
-                    qkd_units[e.key()] += keybps_to_units(rate, cfg.dt_s)
+            # One ground station runs one QKD terminal, so a pass yields
+            # ONE key stream that has to be divided among the station's
+            # quantum-capable edges.  Crediting each incident edge with
+            # the full pass yield, as earlier versions did, manufactures
+            # entropy out of node degree and inflated eta_e fourfold.
+            share = keybps_to_units(rate, cfg.dt_s) / len(inc)
+            for k in inc:
+                qkd_units[k] += share
         for e in self.edges:
             k = e.key()
             self.bq[k].deposit(t, qkd_units[k])
@@ -405,8 +575,17 @@ class HybridNetwork:
             for queue, bank, served in ((self.Xq[k], self.bq[k], dq),
                                         (self.Xp[k], self.bp[k], dp)):
                 budget = bank.available()
-                while queue and budget > 1e-9:
-                    b = queue[0]
+                # Extended nearest-to-origin, on the internal arcs too.
+                # The prior work could serve these in any order because
+                # it stored keys indefinitely and could then dominate the
+                # physical queue by the virtual one pathwise.  Expiring
+                # keys breaks that domination, so physical rate stability
+                # has to come from the ENTO sample-path argument instead,
+                # and that argument needs the discipline here as well.
+                while budget > 1e-9:
+                    b = queue.head()
+                    if b is None:
+                        break
                     use = min(b.amount, budget)
                     got, age, from_p = bank.consume(t, use)
                     if got <= 1e-12:
@@ -420,10 +599,7 @@ class HybridNetwork:
                                   b.used_p or (b.route[b.hop][1] == "P")
                                   or from_p > 1e-9)
                     self.Y[k].append(moved)
-                    if got >= b.amount - 1e-12:
-                        queue.popleft()
-                    else:
-                        b.amount -= got
+                    queue.take(b, got)
 
         for k in self.C:
             self.cum_servedQ[k] += dq[k]
@@ -433,15 +609,13 @@ class HybridNetwork:
         for k in self.C:
             budget = self.C[k]
             q = self.Y[k]
-            # nearest to origin first
-            ordered = sorted(q, key=lambda b: b.hop)
-            q.clear()
-            for b in ordered:
-                if budget <= 1e-9:
-                    q.append(b)
-                    continue
+            while budget > 1e-9:                 # nearest to origin first
+                b = q.head()
+                if b is None:
+                    break
                 use = min(b.amount, budget)
                 budget -= use
+                q.take(b, use)
                 nxt = b.hop + 1
                 if nxt >= len(b.route):
                     aos = self.cfg.T_a if b.used_p else min(b.worst_age,
@@ -453,9 +627,7 @@ class HybridNetwork:
                     fwd = Batch(b.cls, b.graded, b.route, nxt, use, b.born,
                                 b.worst_age, b.used_p)
                     (self.Xq if nsp == "Q" else self.Xp)[nk].append(fwd)
-                if use < b.amount - 1e-12:
-                    b.amount -= use
-                    q.append(b)
+
 
         # 6. virtual queues --------------------------------------------------
         for k in self.C:
@@ -469,16 +641,16 @@ class HybridNetwork:
                 t=t,
                 qkd=qkd_units[k], mfg=h[k],
                 bankQ=self.bq[k].available(), bankP=self.bp[k].available(),
-                xq=sum(b.amount for b in self.Xq[k]),
-                xp=sum(b.amount for b in self.Xp[k]),
-                y=sum(b.amount for b in self.Y[k]),
+                xq=self.Xq[k].amount, xp=self.Xp[k].amount,
+                y=self.Y[k].amount,
                 servedQ=dq[k], servedP=dp[k],
-                ageQ=self.bq[k].mean_age(t),
+                # the surrogate the routing weight actually reads
+                ageQ=self.bq[k].marginal_age(t, max(self.Xq[k].amount, 1.0)),
+                ageMean=self.bq[k].mean_age(t),
                 ageOldest=self.bq[k].oldest_age(t)))
 
-        phys = (sum(sum(b.amount for b in self.Xq[k]) for k in self.C)
-                + sum(sum(b.amount for b in self.Xp[k]) for k in self.C)
-                + sum(sum(b.amount for b in self.Y[k]) for k in self.C))
+        phys = sum(self.Xq[k].amount + self.Xp[k].amount + self.Y[k].amount
+                   for k in self.C)
         self.log.append(dict(
             t=t,
             virt=sum(self.Xqt.values()) + sum(self.Xpt.values())
@@ -583,17 +755,86 @@ if __name__ == "__main__":
 # ---------------------------------------------------------------------------
 def empirical_eta(schedule, horizon: int, edges, dt: float = 1.0) -> dict:
     """Time-averaged Q-key supply per edge, in key units per slot."""
-    gs = {g.name for g in DEFAULT_GROUND_STATIONS}
+    inc_of = qkd_edges_by_station(edges)
     tot = defaultdict(float)
     for t in range(horizon):
-        for g in gs:
+        for g, inc in inc_of.items():
             r = qkd_rate_at(t, schedule.get(g, []))
-            if r <= 0:
+            if r <= 0 or not inc:
                 continue
-            for e in edges:
-                if e.qkd_capable and (e.src == g or e.dst == g):
-                    tot[e.key()] += keybps_to_units(r, dt)
+            share = keybps_to_units(r, dt) / len(inc)   # one pass, one stream
+            for k in inc:
+                tot[k] += share
     return {e.key(): tot[e.key()] / horizon for e in edges}
+
+
+def manufacture_lp(w: dict, cfg: TqdConfig, nodes, eks) -> tuple[dict, float]:
+    """Exact optimum of max_{h in H} sum_e w_e h_e, both endpoints charged.
+
+    H is the packing polytope
+        sum_{e in O(i)} OPS_TAIL h_e + sum_{e in I(i)} OPS_HEAD h_e <= B_i,
+        0 <= h_e <= h_max_e.
+    Each column has exactly two nonzero constraint coefficients, one per
+    endpoint, so this is a fractional packing problem on the node-edge
+    incidence matrix rather than a set of independent knapsacks.
+    """
+    from scipy.optimize import linprog
+    if not cfg.manufacture:
+        return {k: 0.0 for k in eks}, 0.0
+    # Proposition 2(i): an edge with a nonpositive weight is zero at
+    # every optimum, so drop it before solving.  Under demand gating
+    # this removes most of the columns.
+    live = [k for k in eks if w[k] > 0.0]
+    out = {k: 0.0 for k in eks}
+    if not live:
+        return out, 0.0
+    inc = _incidence(nodes, live)
+    hi = cfg.edge_h_max_units
+    res = linprog(np.array([-w[k] for k in live]),
+                  A_ub=inc, b_ub=np.full(inc.shape[0], cfg.node_budget_units),
+                  bounds=[(0.0, hi)] * len(live), method="highs")
+    if not res.success:
+        return out, 0.0
+    for i, k in enumerate(live):
+        out[k] = float(res.x[i])
+    return out, float(-res.fun)
+
+
+_INC_CACHE: dict = {}
+
+
+def _incidence(nodes, eks) -> np.ndarray:
+    """Node-by-edge KEM-cost matrix, both endpoints charged."""
+    key = (tuple(nodes), tuple(eks))
+    hit = _INC_CACHE.get(key)
+    if hit is not None:
+        return hit
+    ni = {n: i for i, n in enumerate(nodes)}
+    m = np.zeros((len(nodes), len(eks)))
+    for j, k in enumerate(eks):
+        m[ni[k[0]], j] += OPS_TAIL
+        m[ni[k[1]], j] += OPS_HEAD
+    if len(_INC_CACHE) > 4096:
+        _INC_CACHE.clear()
+    _INC_CACHE[key] = m
+    return m
+
+
+def manufacture_gap(net) -> tuple[float, float]:
+    """Relative shortfall of the per-node greedy against the exact LP.
+
+    Reported rather than assumed: the greedy is exact only when the
+    budget constraints decouple across nodes, which charging both
+    endpoints of the key exchange breaks.  Returns (worst, mean).
+    """
+    eks = [e.key() for e in net.edges]
+    w = net.manufacture_weights()
+    _, best = manufacture_lp(w, net.cfg, net.nodes, eks)
+    if best <= 1e-9:
+        return 0.0, 0.0
+    got = sum(w[k] * v for k, v in net._manufacture_greedy().items())
+    g = (best - got) / best
+    return g, g
 
 
 def _simple_paths(adj, s, d, cutoff=8):
@@ -679,11 +920,13 @@ def region_boundary(eta, cfg: TqdConfig, flows, edges, nodes,
         row[len(cols) + eidx[k]] = 1.0
         A.append(row); b.append(cfg.edge_h_max_units if cfg.manufacture
                                 else 0.0)
-    for n in nodes:                                # per-node budget
-        row = np.zeros(nv)
+    for n in nodes:                                # per-node KEM budget
+        row = np.zeros(nv)                         # both endpoints charged
         for k in eks:
             if k[0] == n:
-                row[len(cols) + eidx[k]] = OPS_PER_KEY_UNIT
+                row[len(cols) + eidx[k]] += OPS_TAIL
+            if k[1] == n:
+                row[len(cols) + eidx[k]] += OPS_HEAD
         A.append(row); b.append(cfg.node_budget_units if cfg.manufacture
                                 else 0.0)
     Aeq, beq = [], []

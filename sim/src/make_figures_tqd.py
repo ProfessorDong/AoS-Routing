@@ -62,8 +62,14 @@ def main() -> None:
 
     # (3) budget sweep
     b = st[st.study == "B"].sort_values("budget_scale")
+    # The knee sits below an eighth of a core, so the figure axis is
+    # logarithmic and the zero-budget point is placed half a step below
+    # the smallest budget tested rather than dropped.
+    nz = [float(x) for x in b.budget_scale if x > 0]
+    zero_at = min(nz) / 2 if nz else 0.01
     _w("budget.dat", "scale bound goodput its",
-       [(float(r.budget_scale), float(r.lp_boundary_mbps),
+       [(float(r.budget_scale) if r.budget_scale > 0 else zero_at,
+         float(r.lp_boundary_mbps),
          float(r.goodput_mbps), float(r.its_fraction))
         for _, r in b.iterrows()])
 
@@ -114,6 +120,34 @@ def main() -> None:
            [(float(r.hour), float(r.qkd), float(r.mfg), float(r.servedQ),
              float(r.servedP), float(r.servedQ + r.servedP),
              float(r.ageQ), float(r.xq)) for _, r in t.iterrows()])
+
+    # (8) correlated supply: what the reanalysis-driven weather does to
+    #     the dispersion of the boundary, which the independent draw
+    #     averages away
+    cp = SIM / "results_tqd" / "correlated_runs.csv"
+    if cp.exists():
+        cr = pd.read_csv(cp)
+        rows = []
+        for i, r in enumerate(sorted(cr.realization.unique())):
+            g = cr[cr.realization == r]
+            iso = g[g.model == "isccp"]
+            er = g[g.model == "era5"]
+            if iso.empty or er.empty:
+                continue
+            rows.append((float(r),
+                         float(iso.goodput_mbps.iloc[0]),
+                         float(er.goodput_mbps.iloc[0]),
+                         float(iso.its_fraction.iloc[0]),
+                         float(er.its_fraction.iloc[0]),
+                         max(0.0, float(iso.phys_slope.iloc[0])),
+                         max(0.0, float(er.phys_slope.iloc[0]))))
+        _w("correlated.dat",
+           "realization gp_iid gp_era5 its_iid its_era5 slope_iid slope_era5",
+           rows)
+        for m in ("isccp", "era5"):
+            g = cr[cr.model == m].goodput_mbps
+            print(f"    {m}: goodput {g.mean():.2f} Mbps, "
+                  f"cv {g.std()/g.mean():.3f}")
 
     print(f"\nexported to {OUT}")
 

@@ -10,10 +10,13 @@ from pathlib import Path
 import numpy as np
 import aos_tqd as A
 
+WEATHER = "isccp"  # stationary climatology; see correlated_supply.py
+
 OUT = Path(__file__).resolve().parent.parent / "results_tqd"
 SEEDS, HORIZON = [0, 1, 2], 43200
 
-sched = {s: A.build_qkd_schedule(weather_seed=s, hours=12)[0] for s in SEEDS}
+sched = {s: A.build_qkd_schedule(weather_seed=s, hours=12,
+                                 weather_model=WEATHER)[0] for s in SEEDS}
 nodes, edges = A.default_topology()
 flows = A.scaled_flows()
 etas = [A.empirical_eta(sched[s], HORIZON, edges) for s in SEEDS]
