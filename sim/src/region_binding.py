@@ -13,6 +13,12 @@ so that cannot be why the quantum-only region is a rectangle.  And it is
 not one gateway budget that binds but three, so naming a single node was
 arbitrary.
 
+It also sweeps the graded fraction with the full five-flow vector,
+which is what Figure 4 plots.  That caught a third error: the caption
+attributed the flat part of the curve to the classical capacity, and no
+classical link is tight at any theta.  What binds is the quantum supply
+throughout and the gateway compute budgets up to theta = 1/2.
+
 Run:  python3 region_binding.py
 """
 import sys, os
@@ -111,3 +117,27 @@ for lbl,cfg in (("flex theta=0", A.TqdConfig(theta=0.0)),
     if len(use)==2:
         a,bb=[use[k] for k in sorted(use)]
         print(f"  shared edges: {sorted(a&bb) or 'NONE'}")
+
+
+def sweep_theta():
+    """Figure 4: which resources bind as the graded fraction varies."""
+    nominal = sum(f.arrival_bps for f in flows) / 1e6
+    print("\n=== grade sweep, full five-flow vector")
+    print(f"  {'theta':>6s} {'Mbps':>8s} {'classical':>10s} {'quantum':>8s} "
+          f"{'budgets':>8s}")
+    for th in (0.0, 0.125, 0.25, 0.5, 0.75, 1.0):
+        res, rows, cols, Aub, b = solve(A.TqdConfig(theta=th), 0.0)
+        slack = b - Aub @ res.x
+        kinds = {}
+        for n, (kind, who) in enumerate(rows):
+            if slack[n] < 1e-6 * max(1.0, abs(b[n])):
+                kinds.setdefault(kind, []).append(who)
+        print(f"  {th:6.3f} {res.x[-1]*nominal:8.2f} "
+              f"{len(kinds.get('cap',[])):10d} {len(kinds.get('eta',[])):8d} "
+              f"{len(kinds.get('budget',[])):8d}")
+    print("  the classical column is zero at every theta, which is why the"
+          " boundary here is never a bandwidth limit")
+
+
+if __name__ == "__main__":
+    sweep_theta()
