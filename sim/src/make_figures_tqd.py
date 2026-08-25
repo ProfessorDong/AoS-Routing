@@ -112,14 +112,24 @@ def main() -> None:
     # (7) mechanism trace on one ground-station edge: pass-driven quantum
     #     supply, manufactured supply, and how service splits between them
     tp = SIM / "results_tqd" / "trace_gs.csv"
+    mp2 = SIM / "results_tqd" / "trace_mesh.csv"
     if tp.exists():
         t = pd.read_csv(tp)
         t["hour"] = t.t / 3600.0
+        # The mesh edge is carried alongside so that the claim "the
+        # manufactured keys go to the mesh" is shown rather than
+        # asserted.  Both traces are decimated on the same time base.
+        mesh = (pd.read_csv(mp2).servedP.to_numpy() if mp2.exists()
+                else np.zeros(len(t)))
+        if len(mesh) != len(t):
+            mesh = np.zeros(len(t))
         _w("mechanism2.dat",
-           "hour qkd mfg servedQ servedP total age xq",
+           "hour qkd mfg servedQ servedP meshP total age xq",
            [(float(r.hour), float(r.qkd), float(r.mfg), float(r.servedQ),
-             float(r.servedP), float(r.servedQ + r.servedP),
-             float(r.ageQ), float(r.xq)) for _, r in t.iterrows()])
+             float(r.servedP), float(mesh[k]),
+             float(r.servedQ + r.servedP),
+             float(r.ageQ), float(r.xq))
+            for k, (_, r) in enumerate(t.iterrows())])
 
     # (8) correlated supply: what the reanalysis-driven weather does to
     #     the dispersion of the boundary, which the independent draw
