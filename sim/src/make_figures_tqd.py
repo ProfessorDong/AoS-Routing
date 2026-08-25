@@ -149,6 +149,26 @@ def main() -> None:
             print(f"    {m}: goodput {g.mean():.2f} Mbps, "
                   f"cv {g.std()/g.mean():.3f}")
 
+    # (9) the region itself, projected onto two flows.  Manufacturing
+    #     does more than enlarge it: the per-node compute budget couples
+    #     flows that the per-edge quantum supply leaves independent, so
+    #     the enlarged region acquires a diagonal facet the quantum-only
+    #     region does not have.
+    rp = SIM / "results_tqd" / "region_projection.csv"
+    if rp.exists():
+        d = pd.read_csv(rp)
+        _w("region.dat",
+           "x_prior y_prior x_half y_half x_flex y_flex",
+           [(float(r.x_prior), float(r.y_prior), float(r.x_half),
+             float(r.y_half), float(r.x_flex), float(r.y_flex))
+            for _, r in d.iterrows()])
+        for lab in ("prior", "half", "flex"):
+            x, y = d["x_" + lab].to_numpy(), d["y_" + lab].to_numpy()
+            s = x + y
+            binding = int((s > 0.99 * s.max()).sum())
+            print(f"    {lab:5s}: x*={x.max():6.2f} y*={y.max():6.2f} "
+                  f"Mbps, diagonal binding at {binding}/{len(s)} angles")
+
     print(f"\nexported to {OUT}")
 
 
