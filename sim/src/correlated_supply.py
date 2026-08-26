@@ -107,22 +107,22 @@ def main() -> None:
         runs.append(dict(model=model, realization=s,
                          goodput_mbps=r["goodput_mbps"],
                          its_fraction=r["its_fraction"],
-                         mislabelled_fraction=r["mislabelled_fraction"],
+                         mislabeled_fraction=r["mislabeled_fraction"],
                          mean_aos=r["mean_aos"],
                          phys_slope=r["phys_slope"],
                          mean_virt=r["mean_virt"]))
         print(f"  {model:6s} r{s:02d} goodput {r['goodput_mbps']:6.2f} "
-              f"its {r['its_fraction']:5.3f} mislabelled "
-              f"{r['mislabelled_fraction']:.4f} "
+              f"its {r['its_fraction']:5.3f} mislabeled "
+              f"{r['mislabeled_fraction']:.4f} "
               f"slope {r['phys_slope']:9.2e}")
     for model in ("isccp", "era5"):
         sub = [x for x in runs if x["model"] == model]
         g = [x["goodput_mbps"] for x in sub]
         sl = [x["phys_slope"] for x in sub]
-        ms = [x["mislabelled_fraction"] for x in sub]
+        ms = [x["mislabeled_fraction"] for x in sub]
         print(f"{model:6s} goodput mean {np.mean(g):6.2f} "
               f"cv {np.std(g)/np.mean(g):5.3f} | spread {max(g)/min(g):4.2f}x "
-              f"| worst slope {max(sl):9.2e} | worst mislabelled {max(ms):.4f}")
+              f"| worst slope {max(sl):9.2e} | worst mislabeled {max(ms):.4f}")
 
     with open(OUT / "correlated_eta.csv", "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=list(rows[0].keys()))

@@ -1,7 +1,7 @@
 """How the per-slot cost of the policy grows with the network.
 
 The evaluation instance is deliberately small, because its purpose is to
-compare a computed capacity boundary against measured behaviour and that
+compare a computed capacity boundary against measured behavior and that
 comparison needs an instance whose linear program can be solved exactly.
 A separate question is whether the policy itself stays affordable, and
 that is what this script measures.

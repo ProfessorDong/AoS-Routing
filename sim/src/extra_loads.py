@@ -39,10 +39,10 @@ for ls in (3.5, 4.0, 4.5, 5.0):
                          offered_mbps=nominal * ls, lp_boundary_mbps=b,
                          goodput_mbps=m("goodput_mbps"),
                          its_fraction=m("its_fraction"),
-                         mislabelled_fraction=m("mislabelled_fraction"),
+                         mislabeled_fraction=m("mislabeled_fraction"),
                          mean_aos=m("mean_aos"), mean_delay=m("mean_delay"),
                          phys_slope=m("phys_slope"),
-                         manufacture_utilisation=m("manufacture_utilisation"),
+                         manufacture_utilization=m("manufacture_utilization"),
                          qkd_expired_frac=m("qkd_expired_frac")))
         print(f"  {pol:>8s} load {nominal*ls:6.2f}  boundary {b:6.2f}  "
               f"goodput {m('goodput_mbps'):6.2f}  slope {m('phys_slope'):9.2e}",

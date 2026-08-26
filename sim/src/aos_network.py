@@ -49,7 +49,7 @@ varies only the weight function:
                        key budget, and the loss is unbounded (see
                        `param_study.py` study G and the counterexample in
                        the paper).  Retained to measure the gap.
-  * aos_backpressure - AoS-BP-H, the cost-minimising heuristic of the
+  * aos_backpressure - AoS-BP-H, the cost-minimizing heuristic of the
                        MILCOM version, retained as an ABLATION.  No
                        approximation constant exists for it: without the
                        positivity gate the drift damage grows with Z.
@@ -373,7 +373,7 @@ class SimConfig:
     # maintains a reserve sized to its own recent demand and stops there,
     # so k_max only has to absorb QKD pass bursts above that reserve.
     # QKD is deliberately NOT gated: the pass is happening regardless and
-    # the entropy is free, so the asymmetry is physical, not a modelling
+    # the entropy is free, so the asymmetry is physical, not a modeling
     # convenience.
     pqc_gated: bool = True
     pqc_reserve_s: float = 60.0     # target reserve, in seconds of demand
@@ -385,8 +385,8 @@ class SimConfig:
     weight_variant: str = "W3"
     # Penalty weights for Algorithm 1' (`aos_bp_prime`).  These are on a
     # different scale from bp_beta/bp_chi by construction: Algorithm 1
-    # minimises an additive path cost, in which the weights compete only
-    # with each other, whereas Algorithm 1' maximises the rate-weighted
+    # minimizes an additive path cost, in which the weights compete only
+    # with each other, whereas Algorithm 1' maximizes the rate-weighted
     # objective R(P)*(Q_src - sum psi_e), in which they compete against the
     # source backlog Q_src (order 1e8 bits here).  Selected by sweep:
     # chi' at the knee of the utility-delay curve (minimum mean AoS subject
@@ -410,7 +410,7 @@ class SimConfig:
 LP_SCALE = 1.0e6
 
 
-def neighbours(edges: list[Edge]) -> dict[str, list[Edge]]:
+def neighbors(edges: list[Edge]) -> dict[str, list[Edge]]:
     out = defaultdict(list)
     for e in edges:
         out[e.src].append(e)
@@ -430,7 +430,7 @@ def shortest_paths(nodes: list[str], edges: list[Edge],
     per-run logs were not bit-reproducible, which for a released
     artifact is worth eliminating.
     """
-    nbr = neighbours(edges)
+    nbr = neighbors(edges)
     sps = {}
     for s in nodes:
         dist = {n: math.inf for n in nodes}
@@ -566,7 +566,7 @@ class AoSNetwork:
 
         # Index edges by endpoint
         self.edge_index = {e.key(): e for e in edges}
-        self.out_edges  = neighbours(edges)
+        self.out_edges  = neighbors(edges)
 
         # Logging
         self.logs: list[StepLog] = []
@@ -585,7 +585,7 @@ class AoSNetwork:
         Both caps are load-bearing.  They give the bound
         AoS_e <= T_a + lambda_a * tau_d (+ mu_a with a nonzero trust score),
         which is exactly the finite-penalty condition Theorem 1 assumption
-        (i) requires, and they make the metric normalisable.
+        (i) requires, and they make the metric normalizable.
         """
         cfg = self.cfg
         k = self.K[e.key()]
@@ -596,7 +596,7 @@ class AoSNetwork:
 
     def aos_bound(self) -> float:
         """The A_ref = T_a + lambda_a*tau_d bound that `edge_aos` cannot
-        exceed.  Used to normalise the AoS term of the routing weight."""
+        exceed.  Used to normalize the AoS term of the routing weight."""
         return self.cfg.aos_T_a + self.cfg.aos_lambda * self.cfg.aos_tau_d
 
     # -----------------------------------------------------------------
@@ -610,9 +610,9 @@ class AoSNetwork:
         collapses Algorithm 1 into the Key-rate-aware baseline.
 
           W0  alpha * (K_max - K)                      absolute key-bits
-          W1  alpha1 * (1 - K/K_max)                   normalised to buffer
+          W1  alpha1 * (1 - K/K_max)                   normalized to buffer
           W2  (none)                                   AoS carries scarcity
-          W3  alpha3 * min(tau_d, rho*C*dt / (K+eps))  normalised to demand
+          W3  alpha3 * min(tau_d, rho*C*dt / (K+eps))  normalized to demand
 
         Calibration rule, fixed before any variant was run: each term is
         scaled to equal W0 at K = K_max/2, the simulator's initial pool
@@ -1032,7 +1032,7 @@ class AoSNetwork:
         """Per-flow rate-aware greedy over the shared resources (ABLATION).
 
         Flows are taken in decreasing source backlog.  Each is given the
-        path maximising R(P) * W_psi(P) by the bottleneck-restricted
+        path maximizing R(P) * W_psi(P) by the bottleneck-restricted
         Dijkstra sweep, subject to a positivity gate on the true path
         weight, and the chosen path's rate is then subtracted from the
         shared residual capacity and key ceilings before the next flow is
@@ -1114,8 +1114,8 @@ class AoSNetwork:
         if not res.success:
             return [0.0] * len(columns), {}, {}, 0.0
         marg = res.ineqlin.marginals
-        # scipy reports duals of `A_ub x <= b_ub` for a MINIMISATION as
-        # non-positive numbers; the prices of the maximisation are their
+        # scipy reports duals of `A_ub x <= b_ub` for a MINIMIZATION as
+        # non-positive numbers; the prices of the maximization are their
         # negatives.  Clamp at zero to absorb solver noise, which also
         # keeps the pricing costs non-negative so Dijkstra stays valid.
         pi = {ek: max(0.0, -float(marg[i])) for ek, i in eidx.items()}
@@ -1299,7 +1299,7 @@ class AoSNetwork:
         It keeps the three features that distinguish it from the
         conference heuristic -- the drift-derived edge cost psi_e =
         omega*rho*Z_e + beta*L_e + chi*AoS_e, rate-aware selection by
-        maximising R(P)*W_psi(P) instead of minimising an additive cost,
+        maximizing R(P)*W_psi(P) instead of minimizing an additive cost,
         and a positivity gate -- and it tracks residual capacity across
         flows, so its action is feasible.
 
@@ -1465,7 +1465,7 @@ def run(cfg: SimConfig, qkd_schedule, out_dir: Path):
             sum(net.cum_overflow[k] for k in net.cum_D if net.cum_D[k] > 0)
             / max(1.0, sum(net.cum_generated[k] for k in net.cum_D
                            if net.cum_D[k] > 0))),
-        pqc_utilisation=float(
+        pqc_utilization=float(
             sum(net.cum_generated.values())
             / max(1.0, sum(net.cum_G.values()))),
         n_active_edges=int(sum(1 for k in net.cum_D if net.cum_D[k] > 0)),

@@ -1,11 +1,11 @@
 """Hybrid-supply NTN simulator: routing and key manufacturing jointly.
 
 This implements the model and the policy of the journal manuscript.  It
-supersedes `aos_network.py`, which modelled a single fungible key pool
+supersedes `aos_network.py`, which modeled a single fungible key pool
 and a single queue per link; both of those turned out to be the wrong
 abstraction.
 
-WHAT IS MODELLED
+WHAT IS MODELED
 
 Two species of key material, which are not interchangeable.
 
@@ -275,7 +275,7 @@ class KeyBank:
 
 
 # ---------------------------------------------------------------------------
-# a batch of blocks travelling together on one marked route
+# a batch of blocks traveling together on one marked route
 # ---------------------------------------------------------------------------
 class HopQueue:
     """Blocks waiting at one arc, held in extended-nearest-to-origin order.
@@ -351,7 +351,7 @@ class HybridNetwork:
             self.out_edges[e.src].append(e)
         self.qkd_edges_of = qkd_edges_by_station(edges)
         # Transformed arcs that can never be served are deleted, not
-        # merely disfavoured.  An edge outside the quantum overlay has
+        # merely disfavored.  An edge outside the quantum overlay has
         # eta_e = 0, so its q-arc has service rate identically zero and a
         # graded block routed onto it waits forever.  Leaving the arc in
         # place lets Dijkstra pick it whenever the queue terms make it
@@ -478,7 +478,7 @@ class HybridNetwork:
         return h
 
     def _manufacture(self) -> dict:
-        """Maximise sum_e w_e h_e over the budget polytope H, exactly.
+        """Maximize sum_e w_e h_e over the budget polytope H, exactly.
 
         Charging the KEM at both endpoints costs the per-node
         decomposition: H is no longer a Cartesian product over nodes, so
@@ -675,7 +675,7 @@ def run(cfg: TqdConfig, qkd_schedule) -> dict:
     tot = sum(x[5] for x in d)
     its = sum(x[5] for x in d if x[2])
     claimed = sum(x[5] for x in d if x[6])
-    mislabelled = sum(x[5] for x in d if x[6] and not x[2])
+    mislabeled = sum(x[5] for x in d if x[6] and not x[2])
     aos = ([x[3] for x in d for _ in range(1)] or [0.0])
     wts = np.array([x[5] for x in d]) if d else np.array([0.0])
     aos_arr = np.array([x[3] for x in d]) if d else np.array([0.0])
@@ -693,7 +693,7 @@ def run(cfg: TqdConfig, qkd_schedule) -> dict:
         claimed_its_fraction=claimed / max(tot, 1e-12),
         # blocks a policy declared information-theoretic that were in
         # fact encrypted with manufactured material somewhere on the way
-        mislabelled_fraction=mislabelled / max(claimed, 1e-12),
+        mislabeled_fraction=mislabeled / max(claimed, 1e-12),
         mean_aos=float(np.average(aos_arr, weights=wts)) if d else 0.0,
         mean_delay=float(np.average(dly, weights=wts)) if d else 0.0,
         mean_virt=float(np.mean([l["virt"] for l in net.log])),
@@ -702,7 +702,7 @@ def run(cfg: TqdConfig, qkd_schedule) -> dict:
         final_lyap=float(net.log[-1]["lyap"]),
         manufactured_units=net.cum_manufactured,
         capability_units=net.cum_capability,
-        manufacture_utilisation=net.cum_manufactured
+        manufacture_utilization=net.cum_manufactured
                                 / max(net.cum_capability, 1e-12),
         qkd_units=net.cum_qkd,
         qkd_expired_frac=net.cum_expiredQ / max(net.cum_qkd, 1e-12),
@@ -739,7 +739,7 @@ def main() -> None:
                           f"s={s} gp={r['goodput_mbps']:7.2f} "
                           f"its={r['its_fraction']:5.3f} "
                           f"aos={r['mean_aos']:7.2f} "
-                          f"mfg={r['manufacture_utilisation']:5.3f}")
+                          f"mfg={r['manufacture_utilization']:5.3f}")
     with open(out / "master.csv", "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=list(rows[0].keys()))
         w.writeheader(); w.writerows(rows)

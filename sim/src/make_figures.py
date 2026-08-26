@@ -179,10 +179,10 @@ def fig_goodput(df: pd.DataFrame, out_name: str = "fig_aos_goodput"):
         fig, ax = plt.subplots(figsize=(3.6, 2.9))
         x = np.arange(len(SCEN_ORDER))
         width = 0.13
-        centre = (len(SCHED_ORDER) - 1) / 2.0
+        center = (len(SCHED_ORDER) - 1) / 2.0
         for i, sc in enumerate(SCHED_ORDER):
             s = agg[agg["scheduler"] == sc].set_index("scenario").reindex(SCEN_ORDER)
-            ax.bar(x + (i - centre) * width, s["mean"].values / 1e6, width,
+            ax.bar(x + (i - center) * width, s["mean"].values / 1e6, width,
                    yerr=s["std"].values / 1e6, capsize=2,
                    label=SCHED_LABEL[sc], facecolor=SCHED_FACE[sc],
                    edgecolor=SCHED_EDGE[sc], linewidth=0.6)
@@ -298,9 +298,9 @@ def fig_lyapunov(out_name: str = "fig_lyapunov"):
     per_step_dir = (SIM / "results_lyap") if (SIM / "results_lyap").exists() \
                   else RESULTS
     fig, ax = plt.subplots(figsize=(3.4, 2.5))
-    # Colour follows the entity: same scheduler, same hue as every other
+    # Color follows the entity: same scheduler, same hue as every other
     # figure.  Line style is the secondary encoding so identity never
-    # rests on colour alone.
+    # rests on color alone.
     panels = [
         ("shortest_path",    SCHED_LABEL["shortest_path"],    ":"),
         ("aos_ideal",        SCHED_LABEL["aos_ideal"],        "--"),
@@ -351,7 +351,7 @@ def fig_lyapunov(out_name: str = "fig_lyapunov"):
 
 VARIANT_LABEL = {"W0": "$\\alpha(K^{\\max}\\!-\\!K)$ (conference)",
                  "W1": "$\\alpha(1\\!-\\!K/K^{\\max})$",
-                 "W3": "demand-normalised",
+                 "W3": "demand-normalized",
                  "drift": "$\\omega\\rho Z$ (AoS-BP)"}
 VARIANT_COLOR = {"W0": "#D55E00", "W1": "#E69F00",
                  "W3": "#009E73", "drift": "#0072B2"}
@@ -360,7 +360,7 @@ VARIANT_STYLE = {"W0": ":", "W1": "--", "W3": "-.", "drift": "-"}
 
 def fig_kmax(out_name: str = "fig_kmax_invariance"):
     """Mean AoS against the key-buffer cap, per form of the key-scarcity
-    term.  A horizontal line is an edge cost whose behaviour does not
+    term.  A horizontal line is an edge cost whose behavior does not
     depend on an arbitrary buffer size; the conference form is not one."""
     src = SIM / "results_param" / "param_study.csv"
     if not src.exists():
@@ -384,7 +384,7 @@ def fig_kmax(out_name: str = "fig_kmax_invariance"):
         ends.append([np.log10(d.mean_aos.values[-1]),
                      d.k_max_bits.values[-1],
                      "AoS-BP" if v == "drift" else v, VARIANT_COLOR[v]])
-    # Direct labels so identity is never colour-alone.  Series that
+    # Direct labels so identity is never color-alone.  Series that
     # converge would overprint, so push the labels apart in log space
     # before drawing them.
     ends.sort()

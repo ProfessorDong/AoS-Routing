@@ -18,7 +18,7 @@ ONE-TIME SETUP
 
        https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels
 
-     and accept the licence at the bottom of the "Download" tab.  The
+     and accept the license at the bottom of the "Download" tab.  The
      request fails with a 403 until this is done, once per account.
 
   3. Copy your key from https://cds.climate.copernicus.eu/profile and

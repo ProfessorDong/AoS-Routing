@@ -18,7 +18,7 @@ we convert them geometrically,
 
 with r_liq = 10 um and r_ice = 30 um, which are conventional effective
 radii for stratiform cloud.  These reduce to tau = 150*LWP + 54.5*IWP
-with the paths in kg per square metre.  The condensate paths are
+with the paths in kg per square meter.  The condensate paths are
 grid-box means, so this tau is the mean column depth over the cell; the
 cloud fraction is needed to turn it into what a beam sees, and the next
 paragraph does that.

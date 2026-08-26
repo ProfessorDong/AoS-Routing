@@ -1,7 +1,7 @@
 """Parameter and boundary studies for the hybrid-supply policy.
 
 Five studies.  Each one is paired with the linear program of
-`region_boundary`, so the measured behaviour is compared against the
+`region_boundary`, so the measured behavior is compared against the
 region the theory predicts rather than against a fitted curve.
 
   A  LOAD SWEEP.  The point of manufacturing is that it enlarges the
@@ -88,9 +88,9 @@ def main() -> None:
 
     fields = ["study", "policy", "theta", "load_scale", "budget_scale",
               "V_chi", "V_nu", "offered_mbps", "lp_boundary_mbps",
-              "goodput_mbps", "its_fraction", "mislabelled_fraction",
+              "goodput_mbps", "its_fraction", "mislabeled_fraction",
               "mean_aos", "mean_delay", "phys_slope",
-              "manufacture_utilisation", "qkd_expired_frac"]
+              "manufacture_utilization", "qkd_expired_frac"]
     rows = []
 
     def record(study, r, **extra):
@@ -98,10 +98,10 @@ def main() -> None:
                    load_scale=r["load_scale"],
                    goodput_mbps=r["goodput_mbps"],
                    its_fraction=r["its_fraction"],
-                   mislabelled_fraction=r["mislabelled_fraction"],
+                   mislabeled_fraction=r["mislabeled_fraction"],
                    mean_aos=r["mean_aos"], mean_delay=r["mean_delay"],
                    phys_slope=r["phys_slope"],
-                   manufacture_utilisation=r["manufacture_utilisation"],
+                   manufacture_utilization=r["manufacture_utilization"],
                    qkd_expired_frac=r["qkd_expired_frac"])
         row.update(extra)          # seed-averaged values override seed 0
         rows.append(row)
@@ -190,11 +190,11 @@ def main() -> None:
                budget_scale=1.0, offered_mbps=nominal * 2.0,
                lp_boundary_mbps=float("nan"),
                goodput_mbps=_mean(r, "goodput_mbps"),
-               manufacture_utilisation=_mean(r, "manufacture_utilisation"),
+               manufacture_utilization=_mean(r, "manufacture_utilization"),
                its_fraction=_mean(r, "its_fraction"),
                phys_slope=_mean(r, "phys_slope"))
         print(f"  V.nu {vn:9.1f}  manufactured "
-              f"{_mean(r,'manufacture_utilisation'):6.4f}  goodput "
+              f"{_mean(r,'manufacture_utilization'):6.4f}  goodput "
               f"{_mean(r,'goodput_mbps'):6.2f}  ITS "
               f"{_mean(r,'its_fraction'):5.3f}")
 

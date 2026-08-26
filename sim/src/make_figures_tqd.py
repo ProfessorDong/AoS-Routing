@@ -88,7 +88,7 @@ def main() -> None:
     #     rises, long before goodput does
     e = st[st.study == "E"].sort_values("V_nu")
     _w("gating.dat", "vnu manufactured goodput its",
-       [(max(float(r.V_nu), 0.1), float(r.manufacture_utilisation),
+       [(max(float(r.V_nu), 0.1), float(r.manufacture_utilization),
          float(r.goodput_mbps), float(r.its_fraction))
         for _, r in e.iterrows()])
 
@@ -110,15 +110,15 @@ def main() -> None:
             for _, r in f[f.theta == th].sort_values("load_scale").iterrows():
                 oo = o[(o.theta == th) & (o.load_scale == r.load_scale)]
                 rows.append((float(r.load_scale), float(th),
-                             float(r.mislabelled_fraction),
-                             float(oo.mislabelled_fraction.iloc[0]),
+                             float(r.mislabeled_fraction),
+                             float(oo.mislabeled_fraction.iloc[0]),
                              float(r.goodput_mbps),
                              float(oo.goodput_mbps.iloc[0])))
         _w("mislabel.dat", "load theta mis_pooled mis_ours gp_pooled gp_ours",
            rows)
-        print(f"    pooled mislabelling {f.mislabelled_fraction.min():.3f}"
-              f" to {f.mislabelled_fraction.max():.3f}; ours "
-              f"{o.mislabelled_fraction.max():.3f}")
+        print(f"    pooled mislabeling {f.mislabeled_fraction.min():.3f}"
+              f" to {f.mislabeled_fraction.max():.3f}; ours "
+              f"{o.mislabeled_fraction.max():.3f}")
 
     # (7) mechanism trace on one ground-station edge: pass-driven quantum
     #     supply, manufactured supply, and how service splits between them

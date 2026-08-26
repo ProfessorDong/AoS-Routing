@@ -48,7 +48,7 @@ table, and figure.  The manuscript itself is not hosted here.
 |---|---|---|
 | `aos_cg` | **AoS-BP** | main algorithm; solves the per-slot max-weight LP exactly by column generation |
 | `aos_greedy` | AoS-BP-G | ablation; per-flow greedy, unbounded loss (Proposition 1) |
-| `aos_backpressure` | AoS-BP-H | ablation; cost-minimising heuristic from the MILCOM version |
+| `aos_backpressure` | AoS-BP-H | ablation; cost-minimizing heuristic from the MILCOM version |
 | `aos_ideal` | AoS-BP-Ideal | the per-edge max-weight scheduler of the achievability theorem |
 | `shortest_path`, `pqc_only`, `qkd_only`, `key_rate_aware` | baselines | Dijkstra over scheduler-specific edge weights |
 

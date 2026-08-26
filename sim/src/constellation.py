@@ -263,7 +263,7 @@ def constellation_epoch_tt_jd(sats: list[EarthSatellite]) -> float:
     """Median TLE epoch of `sats`, as a TT Julian date.
 
     SGP4 is an epoch-anchored analytic propagator: its error grows rapidly
-    with time from the TLE epoch (kilometres within days, and for LEO the
+    with time from the TLE epoch (kilometers within days, and for LEO the
     along-track and RAAN errors become order-of-orbit after weeks).  Any
     simulation that claims to use the *actual* orbital state of a snapshot
     must therefore be anchored at that snapshot's epoch rather than at an

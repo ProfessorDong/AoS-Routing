@@ -1,4 +1,4 @@
-study,policy,theta,load_scale,budget_scale,V_chi,V_nu,offered_mbps,lp_boundary_mbps,goodput_mbps,its_fraction,mislabelled_fraction,mean_aos,mean_delay,phys_slope,manufacture_utilisation,qkd_expired_frac
+study,policy,theta,load_scale,budget_scale,V_chi,V_nu,offered_mbps,lp_boundary_mbps,goodput_mbps,its_fraction,mislabeled_fraction,mean_aos,mean_delay,phys_slope,manufacture_utilization,qkd_expired_frac
 A,aos_tqd,0.5,3.5,1.0,10.0,0.0,21.875,21.719624955580667,21.62112183059538,0.6241472009857848,0.0,120.0299788305033,292.37304007303624,0.9877158206286367,0.06856642232510289,0.2965784711805282
 A,tqd,1.0,3.5,0.0,10.0,0.0,21.875,10.859812477790333,14.162409343846122,1.0,0.0,14.62459033574796,4903.761451279263,113.52580435623854,0.0,0.3934912295935689
 A,aos_tqd,0.5,4.0,1.0,10.0,0.0,25.0,21.719624955580667,24.21056583410939,0.5736972016571062,0.0,135.30453709397477,702.9471150882047,7.890780838114424,0.07936053240740741,0.2856420046556214

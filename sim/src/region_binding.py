@@ -4,7 +4,7 @@ Figure 3 says the quantum-only projection is a rectangle and the
 flexible one is not, and it attributes the difference to the compute
 budget being charged per node.  That attribution is a claim about the
 LP solution, not about the picture, so it is checked here rather than
-asserted: the region LP is rebuilt with its rows labelled, solved at 45
+asserted: the region LP is rebuilt with its rows labeled, solved at 45
 degrees, and the tight rows are reported.
 
 Two earlier readings of this figure were wrong and this script is what

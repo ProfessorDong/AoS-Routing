@@ -44,12 +44,12 @@ for ls in (1.0, 2.0, 3.0):
                              goodput_mbps=m("goodput_mbps"),
                              its_fraction=m("its_fraction"),
                              claimed_its_fraction=m("claimed_its_fraction"),
-                             mislabelled_fraction=m("mislabelled_fraction"),
-                             mislabelled_sd=sd("mislabelled_fraction")))
+                             mislabeled_fraction=m("mislabeled_fraction"),
+                             mislabeled_sd=sd("mislabeled_fraction")))
             print(f"{ls:5.1f} {th:5.2f} {pol:>9s} {m('goodput_mbps'):8.2f} "
                   f"{m('its_fraction'):8.3f} {m('claimed_its_fraction'):8.3f} "
-                  f"{m('mislabelled_fraction'):7.3f}"
-                  f" +/- {sd('mislabelled_fraction'):.3f}", flush=True)
+                  f"{m('mislabeled_fraction'):7.3f}"
+                  f" +/- {sd('mislabeled_fraction'):.3f}", flush=True)
 with open(OUT / "mislabel.csv", "w", newline="") as fh:
     w = csv.DictWriter(fh, fieldnames=list(rows[0].keys()))
     w.writeheader(); w.writerows(rows)

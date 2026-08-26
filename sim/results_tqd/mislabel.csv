@@ -1,4 +1,4 @@
-load_scale,theta,policy,goodput_mbps,its_fraction,claimed_its_fraction,mislabelled_fraction,mislabelled_sd
+load_scale,theta,policy,goodput_mbps,its_fraction,claimed_its_fraction,mislabeled_fraction,mislabeled_sd
 1.0,0.25,aos_tqd,6.241135054320146,0.992660560779169,0.2499207673036133,0.0,0.0
 1.0,0.25,fungible,6.206775427039493,0.9863844588978796,0.251624665695075,0.015688946684268616,0.0036397353435112375
 1.0,0.5,aos_tqd,6.240597088693166,0.9934510208832187,0.4998702399837115,0.0,0.0
