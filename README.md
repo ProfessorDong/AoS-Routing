@@ -6,7 +6,7 @@ non-terrestrial networks.**
 Code and reproducibility artifacts accompanying:
 
 > Liang Dong, *"Age of Secret: Joint Routing and Key Manufacturing in
-> Hybrid Quantum-Classical Networks."* Journal manuscript, submitted.
+> Hybrid Quantum-Classical Networks."* Journal manuscript.
 
 This repository contains the simulator, the real Starlink Phase-1 TLE
 snapshot, the derived ERA5 series, and the per-run logs behind every
