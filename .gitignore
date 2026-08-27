@@ -87,3 +87,6 @@ sim/data/era5/
 refs/
 *.pdf
 !sim/figs/*.pdf
+journal/submission/
+journal/*.zip
+journal/*.tar.gz

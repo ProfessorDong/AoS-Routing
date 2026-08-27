@@ -35,10 +35,18 @@ eta={k: float(np.mean([e[k] for e in etas])) for k in etas[0]}
 i,j=names.index("bulk-A"), names.index("ses-A")
 
 def solve(cfg, phi):
+    """Region LP with labelled rows.
+
+    `phi` selects the arrival vector: a number gives the two-flow probe
+    of Figure 3, at 1 Mbps split between bulk-A and ses-A by the angle;
+    `None` gives the real five-flow vector of Figure 4.
+    """
     probe=[]
     for k,f in enumerate(flows):
         g=dataclasses.replace(f)
-        g.arrival_bps = math.cos(phi)*1e6 if k==i else (math.sin(phi)*1e6 if k==j else 0.0)
+        if phi is not None:
+            g.arrival_bps = (math.cos(phi)*1e6 if k==i
+                             else (math.sin(phi)*1e6 if k==j else 0.0))
         probe.append(g)
     eks=[e.key() for e in edges]
     emap=dict((e.key(),e) for e in edges)
@@ -120,13 +128,22 @@ for lbl,cfg in (("flex theta=0", A.TqdConfig(theta=0.0)),
 
 
 def sweep_theta():
-    """Figure 4: which resources bind as the graded fraction varies."""
+    """Figure 4: which resources bind as the graded fraction varies.
+
+    This must use the real five-flow arrival vector, not the two-flow
+    probe `solve` builds for Figure 3.  An earlier version called
+    `solve(cfg, 0.0)`, which sets bulk-A to 1 Mbps and every other flow
+    to zero, so it swept a single flow while labelling the output as the
+    five-flow boundary; its Mbps column was that single-flow scaling
+    multiplied by the five-flow total, and at theta = 1/4 it reported no
+    tight budget where the five-flow instance has three.
+    """
     nominal = sum(f.arrival_bps for f in flows) / 1e6
     print("\n=== grade sweep, full five-flow vector")
     print(f"  {'theta':>6s} {'Mbps':>8s} {'classical':>10s} {'quantum':>8s} "
           f"{'budgets':>8s}")
     for th in (0.0, 0.125, 0.25, 0.5, 0.75, 1.0):
-        res, rows, cols, Aub, b = solve(A.TqdConfig(theta=th), 0.0)
+        res, rows, cols, Aub, b = solve(A.TqdConfig(theta=th), None)
         slack = b - Aub @ res.x
         kinds = {}
         for n, (kind, who) in enumerate(rows):
