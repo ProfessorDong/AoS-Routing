@@ -1,6 +1,6 @@
 """
 Discrete-event NTN simulator with queues, key pools, and Age-of-Secret
-routing.  Companion to Paper 2 (MILCOM 2026, sole author Liang Dong).
+routing.  Sole author: Liang Dong.
 
 The simulator runs in 1-second steps.  Each step:
 
@@ -49,15 +49,15 @@ varies only the weight function:
                        key budget, and the loss is unbounded (see
                        `param_study.py` study G and the counterexample in
                        the paper).  Retained to measure the gap.
-  * aos_backpressure - AoS-BP-H, the cost-minimizing heuristic of the
-                       MILCOM version, retained as an ABLATION.  No
+  * aos_backpressure - AoS-BP-H, a cost-minimizing heuristic retained
+                       as an ABLATION.  No
                        approximation constant exists for it: without the
                        positivity gate the drift damage grows with Z.
 
 `max_throughput` is also accepted as a legacy alias for latency-Dijkstra;
 it is not part of the reported six.
 
-Author: Liang Dong, MILCOM 2026 Paper 2.
+Author: Liang Dong.
 """
 
 from __future__ import annotations
@@ -103,8 +103,8 @@ class Edge:
     # traffic-carrying edges is never discarded, at BOTH the 600- and
     # 3600-slot horizons.  Ungated refresh needed 5 Gb for the same
     # property, because idle edges accrue keys indefinitely; gating cuts
-    # the requirement by an order of magnitude.  The MILCOM submission
-    # used 5 Mb, inside the regime where the cap distorts routing.
+    # the requirement by an order of magnitude.  An earlier draft used
+    # 5 Mb, inside the regime where the cap distorts routing.
     k_max_bits: float = 500_000_000    # 500 Mb (62.5 MB) per edge
     pqc_refresh_bps: float = 200_000  # PQC refresh: ~ML-KEM throughput on 1 core
 
@@ -364,7 +364,7 @@ class SimConfig:
     aos_tau_d: float = 60.0             # cap on the dimensionless depletion ratio
     k_max_bits: float | None = None     # override every Edge.k_max_bits when set
     # Warm-start pool level, in bits, independent of k_max.  2.5 Mb is the
-    # level the MILCOM submission started from (12.5 s of PQC refresh).
+    # level an earlier draft started from (12.5 s of PQC refresh).
     k_init_bits: float = 2_500_000
     # Demand-gated PQC refresh.  Running key establishment into a pool that
     # is already adequate burns CPU for material that is never spent, and
@@ -603,7 +603,7 @@ class AoSNetwork:
     def _key_term(self, e: Edge, k: float) -> float:
         """Key-scarcity term of the Algorithm 1 Dijkstra weight, Eq. (8).
 
-        Four candidate forms.  W0 is what the MILCOM submission used; it is
+        Four candidate forms.  W0 is what an earlier draft used; it is
         in absolute key-bits, so its magnitude rescales with K_max while the
         latency and AoS terms do not.  That makes the routing metric depend
         on the buffer size, and at large K_max it swamps the AoS term and

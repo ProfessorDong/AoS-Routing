@@ -3,7 +3,7 @@ Parameter-selection and sensitivity study for AoS-Routing.
 
 This script reproduces the study that fixed the Algorithm 1 routing weight,
 the key-buffer cap K_max, and the Eq. (2) age cap T_a.  It exists because
-those three choices are coupled, and because the MILCOM submission's
+those three choices are coupled, and because an earlier draft's
 headline result turned out to depend on an unstated coincidence between
 alpha and K_max: the shipped key term alpha*(K_max - K) is in absolute
 key-bits, so its magnitude rescales with the buffer size while the latency

@@ -1,6 +1,5 @@
 """
-Real Starlink Phase-1 constellation loader for AoS-Routing experiments
-(MILCOM 2026 Paper 2).
+Real Starlink Phase-1 constellation loader for AoS-Routing experiments.
 
 Primary path: load a current CelesTrak / Space-Track Starlink TLE snapshot
 (`sim/data/starlink.tle`) and filter to the Phase-1 shell
@@ -18,7 +17,7 @@ above a configurable threshold (default 25 degrees).  During a visibility
 window we model a QKD key-generation rate that scales with the cosine of
 the zenith angle and is attenuated by a stochastic weather factor.
 
-Author: Liang Dong, MILCOM 2026 Paper 2.
+Author: Liang Dong.
 """
 
 from __future__ import annotations
